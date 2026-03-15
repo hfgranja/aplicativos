@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { fetchMarketIndicators, INDICATOR_META } from "./services/financialData";
-import { runMonteCarlo, getProductRecommendations } from "./services/monteCarlo";
+import { runMonteCarlo, getProductRecommendations, getPhilosophyBlend, INVESTOR_PROFILES } from "./services/monteCarlo";
 
 // ─── Investor database ────────────────────────────────────────────────────────
 
@@ -508,6 +508,177 @@ function FanChart({ fanData, years, totalInvested }) {
   );
 }
 
+// ─── Philosophy blend card ────────────────────────────────────────────────────
+
+const ASSET_LABELS = {
+  acoesBR:  "Ações BR",
+  acoesExt: "Ações Ext.",
+  rendaFixa:"Renda Fixa",
+  fundos:   "Fundos",
+  reserva:  "Reserva",
+};
+
+function PhilosophyBlendCard({ investorIds, marketData }) {
+  if (!investorIds || investorIds.length === 0 || !marketData) return null;
+
+  const blend = getPhilosophyBlend(
+    investorIds,
+    marketData.selic,
+    marketData.ipcaAnual
+  );
+
+  const mono = { fontFamily: "'JetBrains Mono', monospace" };
+
+  // Find investor metadata from INVESTORS list (icons)
+  // We'll look it up from INVESTOR_PROFILES labels
+  const profileLabels = INVESTOR_PROFILES;
+
+  return (
+    <div
+      style={{
+        background: "rgba(212,163,115,0.04)",
+        border: "1px solid rgba(212,163,115,0.12)",
+        borderRadius: 10,
+        padding: "18px 20px",
+        marginBottom: 18,
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: 10,
+          marginBottom: 14,
+        }}
+      >
+        <div>
+          <div style={{ ...mono, fontSize: 9, letterSpacing: 3, color: "#666", textTransform: "uppercase", marginBottom: 4 }}>
+            Calibração da Filosofia
+          </div>
+          <div style={{ fontSize: 12, color: "#aaa", maxWidth: 420 }}>
+            Parâmetros de retorno (μ) e risco (σ) ajustados pela blend dos mentores selecionados
+          </div>
+        </div>
+        {blend.rebalBonus > 0 && (
+          <div
+            style={{
+              background: "rgba(64,145,108,0.12)",
+              border: "1px solid rgba(64,145,108,0.25)",
+              borderRadius: 6,
+              padding: "5px 10px",
+              ...mono,
+              fontSize: 10,
+              color: "#40916C",
+            }}
+          >
+            + {blend.rebalBonus}% bônus rebalanceamento/ano
+          </div>
+        )}
+      </div>
+
+      {/* Per-philosopher pills */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+        {blend.insights.map((ins) => (
+          <div
+            key={ins.id}
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 20,
+              padding: "4px 10px",
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+            }}
+          >
+            <span style={{ ...mono, fontSize: 10, color: "#888" }}>
+              {ins.id.charAt(0).toUpperCase() + ins.id.slice(1)}
+            </span>
+            <span
+              style={{
+                ...mono,
+                fontSize: 9,
+                color: ins.muAdjPct > 0 ? "#40916C" : ins.muAdjPct < 0 ? "#E94560" : "#666",
+              }}
+            >
+              {ins.muLabel}
+            </span>
+            <span
+              style={{
+                ...mono,
+                fontSize: 9,
+                color: ins.sigmaEffect < 0 ? "#40916C" : ins.sigmaEffect > 0 ? "#E94560" : "#666",
+              }}
+            >
+              {ins.sigmaLabel}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Calibrated params table */}
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+          <thead>
+            <tr>
+              <th style={{ ...mono, fontSize: 9, color: "#555", textAlign: "left", padding: "4px 8px 8px 0", letterSpacing: 1, textTransform: "uppercase" }}>Classe</th>
+              <th style={{ ...mono, fontSize: 9, color: "#555", textAlign: "right", padding: "4px 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>μ base</th>
+              <th style={{ ...mono, fontSize: 9, color: "#40916C", textAlign: "right", padding: "4px 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>Δμ</th>
+              <th style={{ ...mono, fontSize: 9, color: "#D4A373", textAlign: "right", padding: "4px 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>μ efetivo</th>
+              <th style={{ ...mono, fontSize: 9, color: "#555", textAlign: "right", padding: "4px 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>σ base</th>
+              <th style={{ ...mono, fontSize: 9, color: "#D4A373", textAlign: "right", padding: "4px 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>σ ×</th>
+              <th style={{ ...mono, fontSize: 9, color: "#D4A373", textAlign: "right", padding: "4px 0 8px 8px", letterSpacing: 1, textTransform: "uppercase" }}>σ efetivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(blend.blendedParams).map(([key, p]) => {
+              const muChanged    = Math.abs(p.muDelta) > 0.001;
+              const sigmaChanged = Math.abs(p.sigmaM - 1) > 0.001;
+              return (
+                <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                  <td style={{ ...mono, fontSize: 10, color: "#888", padding: "6px 8px 6px 0" }}>
+                    {ASSET_LABELS[key]}
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, color: "#555", textAlign: "right", padding: "6px 8px" }}>
+                    {p.baseMu}%
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, textAlign: "right", padding: "6px 8px",
+                    color: p.muDelta > 0.001 ? "#40916C" : p.muDelta < -0.001 ? "#E94560" : "#444" }}>
+                    {p.muDelta > 0.001 ? `+${p.muDelta}%` : p.muDelta < -0.001 ? `${p.muDelta}%` : "—"}
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, textAlign: "right", padding: "6px 8px",
+                    color: muChanged ? "#D4A373" : "#666", fontWeight: muChanged ? 600 : 400 }}>
+                    {p.mu}%
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, color: "#555", textAlign: "right", padding: "6px 8px" }}>
+                    {p.baseSigma}%
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, textAlign: "right", padding: "6px 8px",
+                    color: p.sigmaM < 0.999 ? "#40916C" : p.sigmaM > 1.001 ? "#E94560" : "#444" }}>
+                    {sigmaChanged ? `×${p.sigmaM}` : "—"}
+                  </td>
+                  <td style={{ ...mono, fontSize: 10, textAlign: "right", padding: "6px 0 6px 8px",
+                    color: sigmaChanged ? "#D4A373" : "#666", fontWeight: sigmaChanged ? 600 : 400 }}>
+                    {p.sigma}%
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ ...mono, fontSize: 9, color: "#444", marginTop: 10, lineHeight: 1.6 }}>
+        μ = retorno anual esperado (nominal, BRL) · σ = desvio padrão anual (volatilidade) ·
+        Δμ e ×σ derivados da blend igualmente ponderada dos {investorIds.length} mentor{investorIds.length > 1 ? "es" : ""} selecionado{investorIds.length > 1 ? "s" : ""}
+      </div>
+    </div>
+  );
+}
+
 // ─── Prediction panel ─────────────────────────────────────────────────────────
 
 function MetricCard({ label, value, sub, color = "#D4A373", alert = false }) {
@@ -540,9 +711,12 @@ function MetricCard({ label, value, sub, color = "#D4A373", alert = false }) {
   );
 }
 
-function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange }) {
+function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange, investorIds = [] }) {
   const [simResult, setSimResult] = useState(null);
   const [running, setRunning] = useState(false);
+
+  // Stable serialisation of investorIds for effect deps
+  const investorKey = investorIds.slice().sort().join(",");
 
   useEffect(() => {
     if (!marketData) return;
@@ -556,6 +730,7 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange }
         ipcaAnual: marketData.ipcaAnual,
         monthlyAmount: amount,
         years: horizon,
+        selectedInvestorIds: investorIds,
         simulations: 2000,
       });
       setSimResult(result);
@@ -563,7 +738,8 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange }
     }, 30);
 
     return () => clearTimeout(t);
-  }, [alloc, amount, marketData, horizon]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alloc, amount, marketData, horizon, investorKey]);
 
   const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -616,6 +792,9 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange }
           ))}
         </div>
       </div>
+
+      {/* Philosophy calibration card */}
+      <PhilosophyBlendCard investorIds={investorIds} marketData={marketData} />
 
       {/* Fan chart */}
       <div
@@ -707,6 +886,11 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange }
             patrimônio superar o total investido ({formatBRL(simResult.totalInvested)}).
             Em 50% dos cenários você terá pelo menos {formatBRL(simResult.median)}.
             No pior 5% dos casos, o patrimônio fica em {formatBRL(simResult.var95)}.
+            {simResult.rebalBonus > 0 && (
+              <span style={{ color: "#40916C", fontStyle: "normal" }}>
+                {" "}Inclui +{simResult.rebalBonus}% a.a. de bônus por rebalanceamento sistemático.
+              </span>
+            )}
           </div>
         </>
       )}
@@ -1251,6 +1435,7 @@ export default function InvestmentAdvisor() {
               marketData={marketData}
               horizon={horizon}
               onHorizonChange={setHorizon}
+              investorIds={selected}
             />
 
             {/* ── Where to invest ── */}
