@@ -1,8 +1,9 @@
 import HealthGauge from './HealthGauge.jsx'
 import ScoreCard from './ScoreCard.jsx'
+import TechniqueAdvisor from './TechniqueAdvisor.jsx'
 import { scoreColor } from '../theme.js'
 
-export default function ResultsDashboard({ results, overallScore, onGenerateTests, onReset }) {
+export default function ResultsDashboard({ results, overallScore, onGenerateTests, onReset, advisor, onAdvisorConfigUpdate }) {
   const criticalCount = results.filter(r => r.score < 40).length
   const goodCount = results.filter(r => r.score >= 80).length
   const color = scoreColor(overallScore)
@@ -28,12 +29,12 @@ export default function ResultsDashboard({ results, overallScore, onGenerateTest
             Score de Qualidade de IA
           </h2>
           <p style={{ fontSize: 13, color: 'rgba(232,232,240,0.5)', marginBottom: 20 }}>
-            Análise baseada em 12 técnicas de validação
+            Análise baseada em 13 técnicas de validação
           </p>
 
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
             <Stat value={goodCount} label="Técnicas OK" color="#00C896" />
-            <Stat value={12 - goodCount - criticalCount} label="Atenção" color="#FFB020" />
+            <Stat value={results.length - goodCount - criticalCount} label="Atenção" color="#FFB020" />
             <Stat value={criticalCount} label="Críticas" color="#FF4D6D" />
           </div>
         </div>
@@ -88,6 +89,14 @@ export default function ResultsDashboard({ results, overallScore, onGenerateTest
           <ScoreCard key={result.id} result={result} />
         ))}
       </div>
+
+      {/* Advisor — powered by Devstral 2 + Qwen3-coder-next */}
+      {advisor && (
+        <TechniqueAdvisor
+          advisor={advisor}
+          onConfigUpdate={onAdvisorConfigUpdate}
+        />
+      )}
     </div>
   )
 }

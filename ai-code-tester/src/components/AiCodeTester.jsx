@@ -11,6 +11,7 @@ export default function AiCodeTester() {
     results, overallScore, generatedTests, error,
     setCode, setPkg, startAnalysis, generateTestSuite, reset,
     git, connectGit, disconnectGit, setSelectedFiles, loadAndAnalyze,
+    advisor, updateAdvisorConfig,
   } = useAnalysis()
 
   return (
@@ -156,6 +157,8 @@ export default function AiCodeTester() {
             overallScore={overallScore}
             onGenerateTests={generateTestSuite}
             onReset={reset}
+            advisor={advisor}
+            onAdvisorConfigUpdate={updateAdvisorConfig}
           />
         )}
 

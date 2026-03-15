@@ -2,6 +2,8 @@ import { useReducer, useCallback } from 'react'
 import { runAllAnalyzers, calcOverallScore } from '../analyzers/orchestrator.js'
 import { generateTests } from '../generators/testGenerator.js'
 import { GitService } from '../services/gitService.js'
+import { saveAnalysis, updateSuggestions, getRecentAnalyses, getStats } from '../services/trainingDataService.js'
+import { checkAvailability, suggestTechniques } from '../services/modelService.js'
 
 const initialGit = {
   provider: 'github',
@@ -22,17 +24,32 @@ const initialGit = {
   connectionError: null,
 }
 
+const initialAdvisor = {
+  suggestions: [],
+  status: 'idle',         // 'idle'|'querying-qwen'|'querying-devstral'|'ready'|'error'
+  ollamaAvailable: null,  // null=não verificado
+  devstralAvailable: false,
+  qwenAvailable: false,
+  trainingCount: 0,
+  avgScore: null,
+  topWeakArea: null,
+  ollamaUrl: 'http://localhost:11434',
+  devstralModel: 'devstral',
+  qwenModel: 'qwen3-coder',
+}
+
 const initialState = {
-  step: 'input',          // 'input' | 'analyzing' | 'results' | 'tests'
+  step: 'input',
   code: '',
   packageJson: '',
-  progress: 0,            // 0-13
+  progress: 0,
   currentTechnique: '',
   results: [],
   overallScore: 0,
   generatedTests: '',
   error: null,
   git: initialGit,
+  advisor: initialAdvisor,
 }
 
 function reducer(state, action) {
@@ -58,7 +75,7 @@ function reducer(state, action) {
     case 'GENERATE_TESTS':
       return { ...state, step: 'tests', generatedTests: action.tests }
     case 'RESET':
-      return { ...initialState }
+      return { ...initialState, advisor: { ...initialAdvisor, ...state.advisor } }
     case 'ERROR':
       return { ...state, step: 'input', error: action.message }
 
@@ -94,6 +111,37 @@ function reducer(state, action) {
         code: action.code,
         git: { ...state.git, loadingFiles: false, loadProgress: 100 },
       }
+
+    // Advisor actions
+    case 'ADVISOR_STATUS':
+      return {
+        ...state,
+        advisor: {
+          ...state.advisor,
+          status: action.status,
+          ...(action.ollamaAvailable !== undefined ? { ollamaAvailable: action.ollamaAvailable } : {}),
+          ...(action.devstralAvailable !== undefined ? { devstralAvailable: action.devstralAvailable } : {}),
+          ...(action.qwenAvailable !== undefined ? { qwenAvailable: action.qwenAvailable } : {}),
+          ...(action.trainingCount !== undefined ? { trainingCount: action.trainingCount } : {}),
+          ...(action.avgScore !== undefined ? { avgScore: action.avgScore } : {}),
+          ...(action.topWeakArea !== undefined ? { topWeakArea: action.topWeakArea } : {}),
+        },
+      }
+    case 'ADVISOR_UPDATE':
+      return {
+        ...state,
+        advisor: {
+          ...state.advisor,
+          suggestions: action.suggestions,
+          status: 'ready',
+        },
+      }
+    case 'ADVISOR_CONFIG':
+      return {
+        ...state,
+        advisor: { ...state.advisor, ...action.fields },
+      }
+
     default:
       return state
   }
@@ -105,6 +153,61 @@ export function useAnalysis() {
   const setCode = useCallback((code) => dispatch({ type: 'SET_CODE', payload: code }), [])
   const setPkg = useCallback((pkg) => dispatch({ type: 'SET_PKG', payload: pkg }), [])
   const reset = useCallback(() => dispatch({ type: 'RESET' }), [])
+
+  // Background function: runs after analysis is done without blocking the UI
+  const runAdvisor = useCallback(async (results, overallScore, code, advisorConfig) => {
+    try {
+      // Save to IndexedDB
+      const id = await saveAnalysis({ code, results, overallScore })
+
+      // Refresh stats
+      const stats = await getStats()
+      dispatch({
+        type: 'ADVISOR_STATUS',
+        status: 'querying-qwen',
+        trainingCount: stats.total,
+        avgScore: stats.avgScore,
+        topWeakArea: stats.topWeakArea,
+      })
+
+      // Check Ollama availability
+      const avail = await checkAvailability(
+        advisorConfig.ollamaUrl,
+        advisorConfig.devstralModel,
+        advisorConfig.qwenModel,
+      )
+      dispatch({
+        type: 'ADVISOR_STATUS',
+        status: avail.ollamaOnline ? 'querying-qwen' : 'idle',
+        ollamaAvailable: avail.ollamaOnline,
+        devstralAvailable: avail.devstralAvailable,
+        qwenAvailable: avail.qwenAvailable,
+        trainingCount: stats.total,
+        avgScore: stats.avgScore,
+        topWeakArea: stats.topWeakArea,
+      })
+
+      if (!avail.ollamaOnline) return
+
+      // Get recent context
+      const recentAnalyses = await getRecentAnalyses(20)
+
+      // Query models with composition pipeline
+      const suggestions = await suggestTechniques(
+        recentAnalyses,
+        results,
+        advisorConfig,
+        (status) => dispatch({ type: 'ADVISOR_STATUS', status }),
+      )
+
+      // Save suggestions back to the record
+      await updateSuggestions(id, suggestions)
+
+      dispatch({ type: 'ADVISOR_UPDATE', suggestions })
+    } catch {
+      dispatch({ type: 'ADVISOR_STATUS', status: 'error' })
+    }
+  }, [])
 
   const startAnalysis = useCallback(async (codeOverride) => {
     const codeToAnalyze = codeOverride !== undefined ? codeOverride : state.code
@@ -126,15 +229,45 @@ export function useAnalysis() {
 
       const overallScore = calcOverallScore(results)
       dispatch({ type: 'ANALYSIS_DONE', results, overallScore })
+
+      // Fire-and-forget: train model with this analysis (does not block UI)
+      runAdvisor(results, overallScore, codeToAnalyze, state.advisor)
     } catch (err) {
       dispatch({ type: 'ERROR', message: `Erro durante análise: ${err.message}` })
     }
-  }, [state.code, state.packageJson])
+  }, [state.code, state.packageJson, state.advisor, runAdvisor])
 
   const generateTestSuite = useCallback(() => {
     const tests = generateTests(state.code, state.results)
     dispatch({ type: 'GENERATE_TESTS', tests })
   }, [state.code, state.results])
+
+  const updateAdvisorConfig = useCallback((fields) => {
+    dispatch({ type: 'ADVISOR_CONFIG', fields })
+    // Re-check availability with new config
+    const newConfig = { ...state.advisor, ...fields }
+    checkAvailability(newConfig.ollamaUrl, newConfig.devstralModel, newConfig.qwenModel)
+      .then(avail => {
+        dispatch({
+          type: 'ADVISOR_STATUS',
+          status: 'idle',
+          ollamaAvailable: avail.ollamaOnline,
+          devstralAvailable: avail.devstralAvailable,
+          qwenAvailable: avail.qwenAvailable,
+        })
+      })
+      .catch(() => {})
+    // Refresh stats too
+    getStats().then(stats => {
+      dispatch({
+        type: 'ADVISOR_STATUS',
+        status: 'idle',
+        trainingCount: stats.total,
+        avgScore: stats.avgScore,
+        topWeakArea: stats.topWeakArea,
+      })
+    }).catch(() => {})
+  }, [state.advisor])
 
   // Git methods
   const connectGit = useCallback(async (fields, triggerConnect = false) => {
@@ -157,21 +290,14 @@ export function useAnalysis() {
       const repo = fields.repo || state.git.repo
       const branch = fields.branch || state.git.branch || 'main'
 
-      // Test connection + get repo info in parallel
       const [userInfo, repoInfo] = await Promise.all([
         svc.testConnection().catch(() => null),
         svc.getRepoInfo(owner, repo),
       ])
 
-      // Get file tree
       const files = await svc.getFileTree(owner, repo, branch)
 
-      dispatch({
-        type: 'GIT_CONNECTED',
-        userInfo,
-        repoInfo,
-        files,
-      })
+      dispatch({ type: 'GIT_CONNECTED', userInfo, repoInfo, files })
     } catch (err) {
       dispatch({
         type: 'GIT_SET_FIELD',
@@ -202,8 +328,6 @@ export function useAnalysis() {
       })
 
       dispatch({ type: 'GIT_LOAD_DONE', code })
-
-      // Kick off analysis with the loaded code
       dispatch({ type: 'SET_CODE', payload: code })
       dispatch({ type: 'START_ANALYSIS' })
 
@@ -217,10 +341,13 @@ export function useAnalysis() {
 
       const overallScore = calcOverallScore(results)
       dispatch({ type: 'ANALYSIS_DONE', results, overallScore })
+
+      // Fire-and-forget advisor
+      runAdvisor(results, overallScore, code, state.advisor)
     } catch (err) {
       dispatch({ type: 'ERROR', message: `Erro ao carregar arquivos: ${err.message}` })
     }
-  }, [state.git, state.packageJson])
+  }, [state.git, state.packageJson, state.advisor, runAdvisor])
 
   return {
     ...state,
@@ -233,5 +360,6 @@ export function useAnalysis() {
     disconnectGit,
     setSelectedFiles,
     loadAndAnalyze,
+    updateAdvisorConfig,
   }
 }
