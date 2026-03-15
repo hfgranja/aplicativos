@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+venv/
+.env
+pec_feedback.db
+uploads/
