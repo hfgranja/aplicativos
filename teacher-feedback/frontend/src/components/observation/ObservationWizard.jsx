@@ -7,6 +7,8 @@ import { SectionPanel } from './SectionPanel'
 import { NarrativePanel } from './NarrativePanel'
 import { TeacherQuestionsPanel } from './TeacherQuestionsPanel'
 import { ReferencesPanel } from './ReferencesPanel'
+import { EF1SectionPanel, EF1MultiSectionPanel } from './EF1SectionPanel'
+import { EF1EncaminhamentosPanel } from './EF1EncaminhamentosPanel'
 import { api } from '../../api/client'
 
 function UploadPanel({ state, set, teachers }) {
@@ -215,7 +217,9 @@ export function ObservationWizard({ teachers }) {
   const nav = useNavigate()
   const obs = useObservation()
   const { state, next, prev, goTo, set, setRating, toggleMethodology, setArrayItem,
-    addBnccSkill, removeBnccSkill, addAction, setAction, removeAction, toPayload, reset } = obs
+    addBnccSkill, removeBnccSkill, addAction, setAction, removeAction,
+    addEf1Encaminhamento, setEf1Encaminhamento, removeEf1Encaminhamento,
+    toPayload, reset } = obs
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -248,9 +252,14 @@ export function ObservationWizard({ teachers }) {
       case 4: return <SectionPanel section="s4" state={state} setRating={setRating} />
       case 5: return <SectionPanel section="s5" state={state} setRating={setRating} />
       case 6: return <NarrativePanel state={state} set={set} setArrayItem={setArrayItem} />
-      case 7: return <TeacherQuestionsPanel state={state} set={set} />
-      case 8: return <ReferencesPanel state={state} set={set} addBnccSkill={addBnccSkill} removeBnccSkill={removeBnccSkill} addAction={addAction} setAction={setAction} removeAction={removeAction} />
-      case 9: return <ReviewPanel state={state} teachers={teachers} />
+      case 7: return <EF1SectionPanel domain="dc" state={state} setRating={setRating} />
+      case 8: return <EF1SectionPanel domain="es" state={state} setRating={setRating} />
+      case 9: return <EF1SectionPanel domain="me" state={state} setRating={setRating} />
+      case 10: return <EF1MultiSectionPanel domains={['md', 'gs']} state={state} setRating={setRating} />
+      case 11: return <EF1EncaminhamentosPanel state={state} set={set} addEf1Encaminhamento={addEf1Encaminhamento} setEf1Encaminhamento={setEf1Encaminhamento} removeEf1Encaminhamento={removeEf1Encaminhamento} />
+      case 12: return <TeacherQuestionsPanel state={state} set={set} />
+      case 13: return <ReferencesPanel state={state} set={set} addBnccSkill={addBnccSkill} removeBnccSkill={removeBnccSkill} addAction={addAction} setAction={setAction} removeAction={removeAction} />
+      case 14: return <ReviewPanel state={state} teachers={teachers} />
       default: return null
     }
   }

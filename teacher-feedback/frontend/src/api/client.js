@@ -45,4 +45,18 @@ export const api = {
   getEvolution: (teacherId) => request('GET', `/analytics/teacher/${teacherId}/evolution`),
   getComparative: (teacherId, obs1, obs2) =>
     request('GET', `/analytics/teacher/${teacherId}/comparative?obs1=${obs1}&obs2=${obs2}`),
+
+  // Knowledge base
+  indexObservation: (obsId) => request('POST', `/knowledge/index-observation/${obsId}`),
+  getBestPractices: (subject = '', grade = '') =>
+    request('GET', `/knowledge/best-practices?subject=${encodeURIComponent(subject)}&grade_band=${encodeURIComponent(grade)}`),
+  getSimilarContext: (subject, grade, weakSections = '') =>
+    request('GET', `/knowledge/similar-context?subject=${encodeURIComponent(subject)}&grade=${encodeURIComponent(grade)}&weak_sections=${encodeURIComponent(weakSections)}`),
+
+  // Action plan results
+  createActionResult: (d) => request('POST', '/action-results', d),
+  getTeacherActionResults: (teacherId) => request('GET', `/action-results/teacher/${teacherId}`),
+  getPeriodComparison: (teacherId) => request('GET', `/action-results/teacher/${teacherId}/period-comparison`),
+  updateActionResult: (id, d) => request('PUT', `/action-results/${id}`, d),
+  deleteActionResult: (id) => request('DELETE', `/action-results/${id}`),
 }

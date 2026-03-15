@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import create_tables
-from routers import teachers, observations, media, llm, analytics
+from routers import teachers, observations, media, llm, analytics, knowledge, action_results
 
 app = FastAPI(title="PEC Teacher Feedback", version="1.0.0")
 
@@ -18,6 +18,8 @@ app.include_router(observations.router)
 app.include_router(media.router)
 app.include_router(llm.router)
 app.include_router(analytics.router)
+app.include_router(knowledge.router)
+app.include_router(action_results.router)
 
 
 @app.on_event("startup")

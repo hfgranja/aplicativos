@@ -4,9 +4,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Observation, Teacher, MediaFile
+from models import Observation, Teacher, MediaFile, ActionPlanResult
 from schemas import ObservationCreate, ObservationOut, CNVRequest
-from services import llm_service
+from services import llm_service, knowledge_service
 from services.llm_service import compute_section_scores
 from typing import List
 
@@ -75,6 +75,18 @@ def generate_feedback(obs_id: str, db: Session = Depends(get_db)):
         Observation.feedback_raw.isnot(None),
     ).order_by(Observation.observed_at.desc()).limit(5).all()
 
+    # RAG layer 2: executed action plan results
+    action_results = db.query(ActionPlanResult).filter(
+        ActionPlanResult.teacher_id == obs.teacher_id,
+        ActionPlanResult.status.in_(["realizado", "parcial"]),
+    ).order_by(ActionPlanResult.updated_at.desc()).limit(10).all()
+
+    # RAG layer 3: best practices from similar context
+    grade_band = llm_service.infer_grade_band(teacher.grade or "")
+    best_practices = knowledge_service.get_best_practices(
+        db, subject=teacher.subject or "", grade_band=grade_band, limit=5
+    )
+
     # Include media transcript if available
     if obs.media_file_id and not obs.transcript:
         media = db.query(MediaFile).filter(MediaFile.id == obs.media_file_id).first()
@@ -82,10 +94,12 @@ def generate_feedback(obs_id: str, db: Session = Depends(get_db)):
             obs.transcript = media.transcript
 
     try:
-        feedback = llm_service.generate_feedback(obs, teacher, history)
+        feedback = llm_service.generate_feedback(obs, teacher, history, action_results, best_practices)
         obs.feedback_raw = json.dumps(feedback, ensure_ascii=False)
         obs.feedback_generated_at = datetime.utcnow()
         db.commit()
+        # Auto-index into knowledge base
+        knowledge_service.index_observation(db, obs_id)
         return {"ok": True, "feedback": feedback, "scores": compute_section_scores(obs)}
     except Exception as e:
         raise HTTPException(500, f"Erro ao gerar feedback: {str(e)}")

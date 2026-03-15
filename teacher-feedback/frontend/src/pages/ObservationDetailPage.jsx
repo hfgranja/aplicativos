@@ -1,9 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { C, SECTION_COLORS, RATING_LABELS, RATING_COLORS } from '../colors'
+
+const EF1_DOMAIN_META = {
+  dc: { title: 'Domínio de Conteúdo', color: '#6C63FF', fields: ['ef1_dc_c1','ef1_dc_c2','ef1_dc_c3'], labels: ['Conhecimento sólido do conteúdo','Explicações adequadas à faixa etária','Relações com cotidiano das crianças'] },
+  es: { title: 'Engajamento dos Estudantes', color: '#00D4AA', fields: ['ef1_es_c1','ef1_es_c2','ef1_es_c3'], labels: ['Interesse, curiosidade e participação ativa','Professor valoriza falas e produções das crianças','Clima de ludicidade, descoberta e pertencimento'] },
+  me: { title: 'Metodologias e Estratégias', color: '#FFB020', fields: ['ef1_me_c1','ef1_me_c2','ef1_me_c3'], labels: ['Abordagens variadas e adequadas para EF I','Estimula pensamento, autonomia e criatividade','Equilibra momentos coletivos, duplas e individuais'] },
+  md: { title: 'Material Didático', color: '#45B7D1', fields: ['ef1_md_c1','ef1_md_c2','ef1_md_c3'], labels: ['Materiais concretos/manipuláveis utilizados','Recursos adequados à faixa etária','Usa materiais oficiais intencionalmente'] },
+  gs: { title: 'Gestão de Sala', color: '#FF6B6B', fields: ['ef1_gs_c1','ef1_gs_c2','ef1_gs_c3'], labels: ['Espaço físico favorece aprendizagem','Rotinas e transições bem gerenciadas','Tempo produtivo, pouco tempo ocioso'] },
+  mc: { title: 'Manejo de Conflitos', color: '#A78BFA', fields: ['ef1_mc_c1','ef1_mc_c2','ef1_mc_c3'], labels: ['Intervém com calma e assertividade','Estratégias restaurativas e dialógicas','Mantém ambiente acolhedor'] },
+}
+
+function hasEf1Data(obs) {
+  return Object.values(EF1_DOMAIN_META).some(d => d.fields.some(f => obs[f]))
+}
 import { Card, Badge, Spinner, ErrorBanner, ScoreBar, Button } from '../components/shared'
 import { FeedbackPanel } from '../components/feedback/FeedbackPanel'
 import { FeedbackCNVPanel } from '../components/feedback/FeedbackCNVPanel'
+import { BestPracticesPanel } from '../components/analytics/BestPracticesPanel'
 import { api } from '../api/client'
 
 const SECTION_NAMES = {
@@ -149,6 +163,62 @@ export function ObservationDetailPage() {
             </Card>
           ))}
 
+          {/* EF I sections */}
+          {hasEf1Data(obs) && (
+            <Card style={{ marginBottom: 20 }}>
+              <h3 style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, marginBottom: 16 }}>
+                FICHA EF I – ENSINO FUNDAMENTAL I
+              </h3>
+              {Object.entries(EF1_DOMAIN_META).map(([domain, meta]) => {
+                const hasData = meta.fields.some(f => obs[f])
+                if (!hasData) return null
+                return (
+                  <div key={domain} style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ background: meta.color + '22', color: meta.color, border: `1px solid ${meta.color}55`, borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700 }}>EF I</span>
+                      <span style={{ color: meta.color, fontSize: 13, fontWeight: 700 }}>{meta.title}</span>
+                    </div>
+                    {meta.fields.map((f, i) => (
+                      <div key={f} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${C.border}` }}>
+                        <span style={{ fontSize: 12, color: C.text }}>{meta.labels[i]}</span>
+                        {obs[f] ? (
+                          <Badge color={RATING_COLORS[obs[f]]}>{RATING_LABELS[obs[f]]}</Badge>
+                        ) : (
+                          <span style={{ color: C.textMuted, fontSize: 11 }}>–</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+              {obs.ef1_sugestoes && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{ color: C.textMuted, fontSize: 11, marginBottom: 6 }}>Sugestões EF I:</p>
+                  <p style={{ fontSize: 12, color: C.text, lineHeight: 1.5 }}>{obs.ef1_sugestoes}</p>
+                </div>
+              )}
+              {(() => {
+                let encs = []
+                try { encs = JSON.parse(obs.ef1_encaminhamentos || '[]') } catch (_) {}
+                if (!encs.length) return null
+                return (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ color: C.textMuted, fontSize: 11, marginBottom: 8 }}>Encaminhamentos:</p>
+                    {encs.map((e, i) => (
+                      <div key={i} style={{ background: C.surface2, borderRadius: 8, padding: 10, marginBottom: 8, fontSize: 12 }}>
+                        <p style={{ color: C.text, marginBottom: 4 }}>{e.encaminhamento}</p>
+                        <div style={{ display: 'flex', gap: 8, color: C.textMuted, fontSize: 11 }}>
+                          {e.responsible && <span>→ {e.responsible}</span>}
+                          {e.deadline && <span>📅 {new Date(e.deadline).toLocaleDateString('pt-BR')}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
+            </Card>
+          )}
+
           {/* Feedback + CNV */}
           <FeedbackPanel obsId={id} feedbackRaw={obs.feedback_raw} scores={scores} onRefresh={load} />
           <FeedbackCNVPanel obsId={id} cnvRaw={obs.cnv_script} feedbackRaw={obs.feedback_raw} onRefresh={load} />
@@ -239,7 +309,7 @@ export function ObservationDetailPage() {
 
           {/* Next observation */}
           {(obs.next_observation_date || obs.next_observation_focus) && (
-            <Card>
+            <Card style={{ marginBottom: 16 }}>
               <h3 style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, marginBottom: 10 }}>PRÓXIMA OBSERVAÇÃO</h3>
               {obs.next_observation_date && (
                 <p style={{ color: C.text, fontSize: 12 }}>📅 {new Date(obs.next_observation_date).toLocaleDateString('pt-BR')}</p>
@@ -248,6 +318,11 @@ export function ObservationDetailPage() {
                 <p style={{ color: C.textMuted, fontSize: 12 }}>Foco: {obs.next_observation_focus}</p>
               )}
             </Card>
+          )}
+
+          {/* Best practices from similar context */}
+          {teacher && (
+            <BestPracticesPanel subject={teacher.subject} grade={teacher.grade} />
           )}
         </div>
       </div>

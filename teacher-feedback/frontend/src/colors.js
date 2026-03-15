@@ -35,3 +35,12 @@ export const RATING_COLORS = {
   adequado: '#FFB020',
   muito_bom: '#00C896',
 }
+
+export const EF1_COLORS = {
+  dc: '#6C63FF',
+  es: '#00D4AA',
+  me: '#FFB020',
+  md: '#45B7D1',
+  gs: '#FF6B6B',
+  mc: '#A78BFA',
+}

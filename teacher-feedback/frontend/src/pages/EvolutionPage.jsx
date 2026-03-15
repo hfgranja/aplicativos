@@ -4,6 +4,7 @@ import { C } from '../colors'
 import { Card, Select, Spinner, ErrorBanner } from '../components/shared'
 import { EvolutionChart } from '../components/analytics/EvolutionChart'
 import { ComparativeRadar } from '../components/analytics/ComparativeRadar'
+import { ActionPlanTracker } from '../components/analytics/ActionPlanTracker'
 import { useTeachers } from '../hooks/useTeachers'
 import { api } from '../api/client'
 
@@ -77,6 +78,7 @@ export function EvolutionPage() {
             {[
               { id: 'evolution', label: 'Evolução Temporal' },
               { id: 'comparative', label: 'Comparativo' },
+              { id: 'action_plans', label: 'Planos de Ação' },
             ].map(t => (
               <button
                 key={t.id}
@@ -145,6 +147,15 @@ export function EvolutionPage() {
                 </p>
               )}
               {loadingComp && <Spinner />}
+            </Card>
+          )}
+
+          {tab === 'action_plans' && (
+            <Card>
+              <h3 style={{ color: C.textMuted, fontSize: 12, fontWeight: 700, marginBottom: 20 }}>
+                PLANOS DE AÇÃO — COMBINADOS E RESULTADOS
+              </h3>
+              <ActionPlanTracker teacherId={selectedTeacher} />
             </Card>
           )}
         </>

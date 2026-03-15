@@ -32,9 +32,6 @@ class MediaFile(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
-RATING = "TEXT"  # nao_observado | insuficiente | adequado | muito_bom
-
-
 class Observation(Base):
     __tablename__ = "observations"
     id = Column(String, primary_key=True, default=gen_uuid)
@@ -45,45 +42,79 @@ class Observation(Base):
     focus_area = Column(String)
 
     # Section 1 – Planejamento e Alinhamento Curricular
-    s1_c1 = Column(String)  # alinhado ao Currículo Paulista
-    s1_c2 = Column(String)  # objetivos explícitos
-    s1_c3 = Column(String)  # habilidades adequadas ao ano
-    s1_c4 = Column(String)  # atividades coerentes com objetivos
+    s1_c1 = Column(String)
+    s1_c2 = Column(String)
+    s1_c3 = Column(String)
+    s1_c4 = Column(String)
 
     # Section 2 – Condução Didática
-    s2_c1 = Column(String)  # início nos 5 primeiros minutos
-    s2_c2 = Column(String)  # retomada de conhecimentos prévios
-    s2_c3 = Column(String)  # explicação clara com exemplos
-    s2_c4 = Column(String)  # variedade metodológica
-    s2_c5 = Column(String)  # perguntas para verificar compreensão
-    s2_c6 = Column(String)  # fechamento/síntese
+    s2_c1 = Column(String)
+    s2_c2 = Column(String)
+    s2_c3 = Column(String)
+    s2_c4 = Column(String)
+    s2_c5 = Column(String)
+    s2_c6 = Column(String)
     s2_methodologies = Column(Text)  # JSON array
 
     # Section 3 – Gestão da Aprendizagem
-    s3_c1 = Column(String)  # engajamento e participação
-    s3_c2 = Column(String)  # identifica e atende dificuldades
-    s3_c3 = Column(String)  # diferenciação pedagógica
-    s3_c4 = Column(String)  # avaliação formativa
-    s3_c5 = Column(String)  # feedback aos alunos
+    s3_c1 = Column(String)
+    s3_c2 = Column(String)
+    s3_c3 = Column(String)
+    s3_c4 = Column(String)
+    s3_c5 = Column(String)
 
     # Section 4 – Materiais e Recursos
-    s4_c1 = Column(String)  # materiais oficiais SEDUC
-    s4_c2 = Column(String)  # recursos disponíveis
-    s4_c3 = Column(String)  # tempo bem distribuído
-    s4_c4 = Column(String)  # registros claros e organizados
+    s4_c1 = Column(String)
+    s4_c2 = Column(String)
+    s4_c3 = Column(String)
+    s4_c4 = Column(String)
 
     # Section 5 – Clima e Postura
-    s5_c1 = Column(String)  # ambiente de respeito
-    s5_c2 = Column(String)  # boa relação com alunos
-    s5_c3 = Column(String)  # manejo de indisciplina
-    s5_c4 = Column(String)  # preparo prévio e organização
-    s5_c5 = Column(String)  # postura profissional
+    s5_c1 = Column(String)
+    s5_c2 = Column(String)
+    s5_c3 = Column(String)
+    s5_c4 = Column(String)
+    s5_c5 = Column(String)
 
     # Narrative (PEC)
     habilidades_curriculo = Column(Text)
-    pontos_fortes = Column(Text)        # JSON array
+    pontos_fortes = Column(Text)          # JSON array
     focos_desenvolvimento = Column(Text)  # JSON array
     sugestoes = Column(Text)
+
+    # EF I – Domínio de Conteúdo (Pedro Demo: "Ser professor é qualidade")
+    ef1_dc_c1 = Column(String)  # Conhecimento sólido do conteúdo
+    ef1_dc_c2 = Column(String)  # Explicações adequadas à faixa etária
+    ef1_dc_c3 = Column(String)  # Relações com cotidiano das crianças
+
+    # EF I – Engajamento dos Estudantes (Pedro Demo: "Educar pela pesquisa")
+    ef1_es_c1 = Column(String)  # Interesse, curiosidade e participação
+    ef1_es_c2 = Column(String)  # Professor valoriza falas e produções
+    ef1_es_c3 = Column(String)  # Clima de ludicidade e pertencimento
+
+    # EF I – Metodologias e Estratégias (Pedro Demo: "Avaliação qualitativa")
+    ef1_me_c1 = Column(String)  # Abordagens variadas e adequadas para EF I
+    ef1_me_c2 = Column(String)  # Estimula pensamento e autonomia
+    ef1_me_c3 = Column(String)  # Equilibra momentos coletivos, duplas e individuais
+
+    # EF I – Material Didático
+    ef1_md_c1 = Column(String)  # Materiais concretos/manipuláveis utilizados
+    ef1_md_c2 = Column(String)  # Recursos adequados à faixa etária
+    ef1_md_c3 = Column(String)  # Usa materiais oficiais intencionalmente
+
+    # EF I – Gestão de Sala
+    ef1_gs_c1 = Column(String)  # Espaço físico favorece aprendizagem
+    ef1_gs_c2 = Column(String)  # Rotinas e transições bem gerenciadas
+    ef1_gs_c3 = Column(String)  # Tempo produtivo, pouco tempo ocioso
+
+    # EF I – Manejo de Conflitos
+    ef1_mc_c1 = Column(String)  # Intervém com calma e assertividade
+    ef1_mc_c2 = Column(String)  # Estratégias restaurativas e dialógicas
+    ef1_mc_c3 = Column(String)  # Mantém ambiente acolhedor
+
+    # EF I – Sugestões e Encaminhamentos
+    ef1_sugestoes = Column(Text)         # Texto livre de sugestões
+    ef1_encaminhamentos = Column(Text)   # JSON array [{encaminhamento, responsible, deadline, status}]
 
     # Teacher self-reflection
     teacher_feeling = Column(Text)
@@ -108,3 +139,37 @@ class Observation(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     teacher = relationship("Teacher", back_populates="observations")
+
+
+class KnowledgeBase(Base):
+    """Indexed extracts from observations for RAG context in future feedbacks."""
+    __tablename__ = "knowledge_base"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    teacher_id = Column(String, ForeignKey("teachers.id"), nullable=False)
+    observation_id = Column(String, ForeignKey("observations.id"), nullable=False)
+    source_type = Column(String)   # 'feedback' | 'action_plan' | 'transcript' | 'best_practice'
+    subject = Column(String)       # e.g. "Matemática"
+    grade_band = Column(String)    # 'ef1' | 'ef2' | 'em'
+    content = Column(Text)         # Indexed text
+    score_at_time = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ActionPlanResult(Base):
+    """Tracks execution and outcome of each combined action / encaminhamento."""
+    __tablename__ = "action_plan_results"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    observation_id = Column(String, ForeignKey("observations.id"), nullable=False)
+    teacher_id = Column(String, ForeignKey("teachers.id"), nullable=False)
+    action_text = Column(Text)
+    action_type = Column(String)   # 'combined' | 'ef1_encaminhamento'
+    deadline = Column(Date)
+    responsible = Column(String)   # professor | escola | família | rede
+    status = Column(String, default="pendente")  # pendente | realizado | parcial
+    result_notes = Column(Text)
+    score_before = Column(Integer)
+    score_after = Column(Integer)
+    delta_score = Column(Integer)
+    next_observation_id = Column(String, ForeignKey("observations.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

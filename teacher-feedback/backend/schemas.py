@@ -65,6 +65,33 @@ class ObservationCreate(BaseModel):
     pontos_fortes: Optional[str] = None
     focos_desenvolvimento: Optional[str] = None
     sugestoes: Optional[str] = None
+    # EF I – Domínio de Conteúdo
+    ef1_dc_c1: Optional[str] = None
+    ef1_dc_c2: Optional[str] = None
+    ef1_dc_c3: Optional[str] = None
+    # EF I – Engajamento dos Estudantes
+    ef1_es_c1: Optional[str] = None
+    ef1_es_c2: Optional[str] = None
+    ef1_es_c3: Optional[str] = None
+    # EF I – Metodologias e Estratégias
+    ef1_me_c1: Optional[str] = None
+    ef1_me_c2: Optional[str] = None
+    ef1_me_c3: Optional[str] = None
+    # EF I – Material Didático
+    ef1_md_c1: Optional[str] = None
+    ef1_md_c2: Optional[str] = None
+    ef1_md_c3: Optional[str] = None
+    # EF I – Gestão de Sala
+    ef1_gs_c1: Optional[str] = None
+    ef1_gs_c2: Optional[str] = None
+    ef1_gs_c3: Optional[str] = None
+    # EF I – Manejo de Conflitos
+    ef1_mc_c1: Optional[str] = None
+    ef1_mc_c2: Optional[str] = None
+    ef1_mc_c3: Optional[str] = None
+    # EF I – Sugestões e Encaminhamentos
+    ef1_sugestoes: Optional[str] = None
+    ef1_encaminhamentos: Optional[str] = None  # JSON array
     # Teacher reflection
     teacher_feeling: Optional[str] = None
     teacher_comments: Optional[str] = None
@@ -80,10 +107,10 @@ class ObservationCreate(BaseModel):
 
 class ObservationOut(ObservationCreate):
     id: str
-    transcript: Optional[str]
-    feedback_raw: Optional[str]
-    feedback_generated_at: Optional[datetime]
-    cnv_script: Optional[str]
+    transcript: Optional[str] = None
+    feedback_raw: Optional[str] = None
+    feedback_generated_at: Optional[datetime] = None
+    cnv_script: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -107,3 +134,37 @@ class MediaFileOut(BaseModel):
 # ---- LLM ----
 class CNVRequest(BaseModel):
     questions: List[str]
+
+
+# ---- Action Plan Results ----
+class ActionResultCreate(BaseModel):
+    observation_id: str
+    teacher_id: str
+    action_text: str
+    action_type: str  # 'combined' | 'ef1_encaminhamento'
+    deadline: Optional[date] = None
+    responsible: Optional[str] = None
+
+
+class ActionResultUpdate(BaseModel):
+    status: str  # pendente | realizado | parcial
+    result_notes: Optional[str] = None
+
+
+class ActionResultOut(BaseModel):
+    id: str
+    observation_id: str
+    teacher_id: str
+    action_text: str
+    action_type: str
+    deadline: Optional[date]
+    responsible: Optional[str]
+    status: str
+    result_notes: Optional[str]
+    score_before: Optional[int]
+    score_after: Optional[int]
+    delta_score: Optional[int]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
