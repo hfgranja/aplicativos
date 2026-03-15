@@ -11,10 +11,13 @@ const TECHNIQUES = [
   { name: 'Anti-padrões de Performance', icon: '🚀' },
   { name: 'Tratamento de Erros', icon: '🔧' },
   { name: 'Contratos de API', icon: '🔌' },
+  { name: 'Testes por Mutação', icon: '🧬' },
 ]
 
+const TOTAL_TECHNIQUES = TECHNIQUES.length
+
 export default function AnalysisProgress({ progress, currentTechnique }) {
-  const pct = Math.round((progress / 12) * 100)
+  const pct = Math.round((progress / TOTAL_TECHNIQUES) * 100)
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto', textAlign: 'center' }}>
@@ -46,7 +49,7 @@ export default function AnalysisProgress({ progress, currentTechnique }) {
           }} />
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(232,232,240,0.4)' }}>
-          <span>{progress} / 12 técnicas</span>
+          <span>{progress} / {TOTAL_TECHNIQUES} técnicas</span>
           <span style={{ color: '#6C63FF', fontWeight: 600 }}>{pct}%</span>
         </div>
       </div>

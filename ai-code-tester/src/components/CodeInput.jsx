@@ -170,7 +170,7 @@ export default function CodeInput({ code, packageJson, onCodeChange, onPkgChange
           onMouseEnter={e => { if (hasCode) e.target.style.transform = 'translateY(-2px)' }}
           onMouseLeave={e => { e.target.style.transform = 'none' }}
         >
-          🔬 Analisar com 12 Técnicas
+          🔬 Analisar com 13 Técnicas
         </button>
         {!hasCode && (
           <p style={{ marginTop: 10, fontSize: 12, color: 'rgba(232,232,240,0.35)' }}>

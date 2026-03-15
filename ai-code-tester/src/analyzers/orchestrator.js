@@ -1,5 +1,5 @@
 /**
- * Orquestrador: executa os 12 analyzers sequencialmente
+ * Orquestrador: executa os 13 analyzers sequencialmente
  * Cada um retorna { id, name, score, issues, suggestions, detail }
  */
 import staticAnalysis from './01_staticAnalysis.js'
@@ -14,6 +14,7 @@ import bestPracticesAnalysis from './09_bestPractices.js'
 import performanceAnalysis from './10_performance.js'
 import errorHandlingAnalysis from './11_errorHandling.js'
 import apiContractAnalysis from './12_apiContracts.js'
+import mutationTestingAnalysis from './13_mutationTesting.js'
 
 const ANALYZERS = [
   staticAnalysis,
@@ -28,14 +29,15 @@ const ANALYZERS = [
   performanceAnalysis,
   errorHandlingAnalysis,
   apiContractAnalysis,
+  mutationTestingAnalysis,
 ]
 
 /**
- * Run all 12 analyzers with progress callbacks
+ * Run all 13 analyzers with progress callbacks
  * @param {string} code - source code to analyze
  * @param {string} packageJsonCode - optional package.json content
  * @param {function} onProgress - called with (index, total, currentName)
- * @returns {Promise<Array>} array of 12 results
+ * @returns {Promise<Array>} array of 13 results
  */
 export async function runAllAnalyzers(code, packageJsonCode, onProgress) {
   const results = []
@@ -81,7 +83,7 @@ export async function runAllAnalyzers(code, packageJsonCode, onProgress) {
  */
 export function calcOverallScore(results) {
   if (results.length === 0) return 0
-  const weights = [1, 1, 0.8, 2, 1, 1, 1, 0.7, 1, 1.2, 1.5, 1] // security & error handling weigh more
+  const weights = [1, 1, 0.8, 2, 1, 1, 1, 0.7, 1, 1.2, 1.5, 1, 1.2] // security & error handling weigh more; mutation added
   let total = 0, wSum = 0
   results.forEach((r, i) => {
     const w = weights[i] || 1

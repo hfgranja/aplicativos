@@ -3,6 +3,7 @@
  * Gera templates Jest/Vitest baseados nos resultados da análise e funções detectadas
  */
 import { parseCode, getFunctions } from '../analyzers/astParser.js'
+import { generateMutationTests } from './mutationGenerator.js'
 
 function getFunctionName(fn) {
   return fn.id?.name ||
@@ -272,6 +273,7 @@ ${testableFns.map(fn => generateFunctionTests(fn, code)).join('\n')}`
   const securityTests = generateSecurityTests(results)
   const coverageTests = generateCoverageTests(results)
   const integrationTests = generateIntegrationTests(code)
+  const mutationTests = generateMutationTests(code)
 
   const footer = `
 
@@ -293,5 +295,5 @@ export default defineConfig({
 */
 `
 
-  return header + fetchMocks + functionTests + securityTests + coverageTests + integrationTests + footer
+  return header + fetchMocks + functionTests + securityTests + coverageTests + integrationTests + mutationTests + footer
 }
