@@ -10,6 +10,7 @@ export default function AiCodeTester() {
     step, code, packageJson, progress, currentTechnique,
     results, overallScore, generatedTests, error,
     setCode, setPkg, startAnalysis, generateTestSuite, reset,
+    git, connectGit, disconnectGit, setSelectedFiles, loadAndAnalyze,
   } = useAnalysis()
 
   return (
@@ -102,7 +103,7 @@ export default function AiCodeTester() {
           </h1>
           <p style={{ fontSize: 16, color: 'rgba(232,232,240,0.5)', maxWidth: 560, margin: '0 auto 16px', lineHeight: 1.7 }}>
             Análise completa: segurança, complexidade, cobertura, boas práticas e mais.
-            Gera automaticamente uma suíte de testes Jest/Vitest ao final.
+            Conecte repositórios Git ou cole o código diretamente.
           </p>
 
           {/* Technique pills */}
@@ -135,6 +136,13 @@ export default function AiCodeTester() {
             onPkgChange={setPkg}
             onAnalyze={startAnalysis}
             error={error}
+            git={git}
+            onConnectGit={connectGit}
+            onDisconnectGit={disconnectGit}
+            onSelectFiles={setSelectedFiles}
+            onLoadAndAnalyze={loadAndAnalyze}
+            connectingGit={git.connecting}
+            connectionError={git.connectionError}
           />
         )}
 
@@ -170,6 +178,7 @@ export default function AiCodeTester() {
       }}>
         <span>AI Code Tester v1.0</span>
         <span>13 Técnicas de Validação</span>
+        <span>GitHub · GitLab · Bitbucket · Azure DevOps</span>
         <span>Análise 100% no browser · sem envio de dados</span>
       </footer>
     </div>
