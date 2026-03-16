@@ -1,0 +1,85 @@
+name: Deploy — GCP (us-central1)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy"
+        required: false
+        default: ""
+
+env:
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: us-central1
+  GKE_CLUSTER: ait-gcp-us-central1
+  AR_REGISTRY: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ait
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  SERVICES: "analysis-service advisory-service git-proxy storage-service cell-health frontend"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP (OIDC)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push all images
+        run: |
+          for SERVICE in $SERVICES; do
+            docker buildx build \
+              --file apps/$SERVICE/Dockerfile \
+              --tag $AR_REGISTRY/$SERVICE:$IMAGE_TAG \
+              --push \
+              .
+          done
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GCP_REGION }}
+
+      - name: Deploy with Kustomize
+        run: |
+          cd infra/k8s/overlays/gcp
+          kustomize edit set image \
+            analysis-service=$AR_REGISTRY/analysis-service:$IMAGE_TAG \
+            advisory-service=$AR_REGISTRY/advisory-service:$IMAGE_TAG \
+            git-proxy=$AR_REGISTRY/git-proxy:$IMAGE_TAG \
+            storage-service=$AR_REGISTRY/storage-service:$IMAGE_TAG \
+            cell-health=$AR_REGISTRY/cell-health:$IMAGE_TAG \
+            frontend=$AR_REGISTRY/frontend:$IMAGE_TAG
+          kubectl apply -k .
+          kubectl rollout status deployment -n ait-gcp-us-central1 --timeout=300s
+
+      - name: Smoke test
+        run: |
+          INGRESS_IP=$(kubectl get ingress -n ait-gcp-us-central1 -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+          for i in $(seq 1 10); do
+            STATUS=$(curl -sf http://$INGRESS_IP/health | jq -r '.status' 2>/dev/null || echo "error")
+            if [ "$STATUS" = "healthy" ]; then echo "Healthy"; exit 0; fi
+            echo "Attempt $i: $STATUS — retrying in 15s..."; sleep 15
+          done
+          exit 1

@@ -1,0 +1,81 @@
+name: Deploy — Azure (eastus)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy"
+        required: false
+        default: ""
+
+env:
+  AKS_CLUSTER: ait-azure-eastus
+  AKS_RESOURCE_GROUP: rg-ait-azure-eastus
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_NAME }}.azurecr.io
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  SERVICES: "analysis-service advisory-service git-proxy storage-service cell-health frontend"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name $ACR_NAME
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push all images
+        run: |
+          for SERVICE in $SERVICES; do
+            docker buildx build \
+              --file apps/$SERVICE/Dockerfile \
+              --tag $ACR_LOGIN_SERVER/ait/$SERVICE:$IMAGE_TAG \
+              --push \
+              .
+          done
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Get AKS credentials
+        run: az aks get-credentials --resource-group $AKS_RESOURCE_GROUP --name $AKS_CLUSTER --overwrite-existing
+
+      - name: Deploy with Kustomize
+        run: |
+          cd infra/k8s/overlays/azure
+          kustomize edit set image \
+            analysis-service=$ACR_LOGIN_SERVER/ait/analysis-service:$IMAGE_TAG \
+            advisory-service=$ACR_LOGIN_SERVER/ait/advisory-service:$IMAGE_TAG \
+            git-proxy=$ACR_LOGIN_SERVER/ait/git-proxy:$IMAGE_TAG \
+            storage-service=$ACR_LOGIN_SERVER/ait/storage-service:$IMAGE_TAG \
+            cell-health=$ACR_LOGIN_SERVER/ait/cell-health:$IMAGE_TAG \
+            frontend=$ACR_LOGIN_SERVER/ait/frontend:$IMAGE_TAG
+          kubectl apply -k .
+          kubectl rollout status deployment -n ait-azure-eastus --timeout=300s
+
+      - name: Smoke test
+        run: |
+          INGRESS_IP=$(kubectl get ingress -n ait-azure-eastus -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+          for i in $(seq 1 10); do
+            STATUS=$(curl -sf http://$INGRESS_IP/health | jq -r '.status' 2>/dev/null || echo "error")
+            if [ "$STATUS" = "healthy" ]; then echo "Healthy"; exit 0; fi
+            echo "Attempt $i: $STATUS — retrying in 15s..."; sleep 15
+          done
+          exit 1

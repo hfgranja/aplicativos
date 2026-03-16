@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ait-alibaba-ap-east-1
+
+resources:
+  - ../../base
+
+namePrefix: alibaba-
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: alibaba-cell-config
+    patch: |-
+      - op: replace
+        path: /data/cell_id
+        value: alibaba-ap-east-1
+      - op: replace
+        path: /data/cloud_provider
+        value: alibaba
+
+  - target:
+      kind: Ingress
+      name: alibaba-ait-ingress
+    patch: |-
+      - op: replace
+        path: /metadata/annotations
+        value:
+          kubernetes.io/ingress.class: alb
+          alb.ingress.kubernetes.io/address-type: internet
+
+images:
+  - name: analysis-service
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/analysis-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: advisory-service
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/advisory-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: git-proxy
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/git-proxy"
+    newTag: "$(IMAGE_TAG)"
+  - name: storage-service
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/storage-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: cell-health
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/cell-health"
+    newTag: "$(IMAGE_TAG)"
+  - name: frontend
+    newName: "registry.$(ALIBABA_REGION).aliyuncs.com/$(ALIBABA_NAMESPACE)/frontend"
+    newTag: "$(IMAGE_TAG)"

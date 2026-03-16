@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advisory-service
+  namespace: ait
+  labels:
+    app: advisory-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: advisory-service
+  template:
+    metadata:
+      labels:
+        app: advisory-service
+    spec:
+      volumes:
+        - name: ollama-models
+          persistentVolumeClaim:
+            claimName: ollama-models
+      initContainers:
+        - name: ollama-pull-models
+          image: ollama/ollama:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ollama serve &
+              sleep 5
+              ollama pull devstral || true
+              ollama pull qwen3-coder || true
+              kill %1
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+      containers:
+        - name: advisory-service
+          image: advisory-service:latest
+          ports:
+            - containerPort: 3002
+          env:
+            - name: PORT
+              value: "3002"
+            - name: NODE_ENV
+              value: production
+            - name: OLLAMA_URL
+              value: "http://localhost:11434"
+            - name: DEVSTRAL_MODEL
+              value: devstral
+            - name: QWEN_MODEL
+              value: qwen3-coder
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: ollama-models
+              mountPath: /root/.ollama
+          resources:
+            requests:
+              cpu: 2000m
+              memory: 4Gi
+            limits:
+              cpu: 4000m
+              memory: 8Gi
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: 11434
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: ait
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

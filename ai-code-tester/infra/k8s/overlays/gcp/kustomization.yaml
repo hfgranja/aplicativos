@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ait-gcp-us-central1
+
+resources:
+  - ../../base
+
+namePrefix: gcp-
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: gcp-cell-config
+    patch: |-
+      - op: replace
+        path: /data/cell_id
+        value: gcp-us-central1
+      - op: replace
+        path: /data/cloud_provider
+        value: gcp
+
+  - target:
+      kind: Ingress
+      name: gcp-ait-ingress
+    patch: |-
+      - op: replace
+        path: /metadata/annotations
+        value:
+          kubernetes.io/ingress.class: gce
+          kubernetes.io/ingress.global-static-ip-name: ait-gcp-ip
+
+images:
+  - name: analysis-service
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/analysis-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: advisory-service
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/advisory-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: git-proxy
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/git-proxy"
+    newTag: "$(IMAGE_TAG)"
+  - name: storage-service
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/storage-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: cell-health
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/cell-health"
+    newTag: "$(IMAGE_TAG)"
+  - name: frontend
+    newName: "$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/ait/frontend"
+    newTag: "$(IMAGE_TAG)"

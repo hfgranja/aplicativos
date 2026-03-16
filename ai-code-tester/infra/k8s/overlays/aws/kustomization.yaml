@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ait-aws-us-east-1
+
+resources:
+  - ../../base
+
+namePrefix: aws-
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: aws-cell-config
+    patch: |-
+      - op: replace
+        path: /data/cell_id
+        value: aws-us-east-1
+      - op: replace
+        path: /data/cloud_provider
+        value: aws
+
+  - target:
+      kind: Ingress
+      name: aws-ait-ingress
+    patch: |-
+      - op: replace
+        path: /metadata/annotations
+        value:
+          kubernetes.io/ingress.class: alb
+          alb.ingress.kubernetes.io/scheme: internet-facing
+          alb.ingress.kubernetes.io/target-type: ip
+          alb.ingress.kubernetes.io/healthcheck-path: /health
+
+images:
+  - name: analysis-service
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/analysis-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: advisory-service
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/advisory-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: git-proxy
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/git-proxy"
+    newTag: "$(IMAGE_TAG)"
+  - name: storage-service
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/storage-service"
+    newTag: "$(IMAGE_TAG)"
+  - name: cell-health
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/cell-health"
+    newTag: "$(IMAGE_TAG)"
+  - name: frontend
+    newName: "$(AWS_ACCOUNT).dkr.ecr.us-east-1.amazonaws.com/ait/frontend"
+    newTag: "$(IMAGE_TAG)"

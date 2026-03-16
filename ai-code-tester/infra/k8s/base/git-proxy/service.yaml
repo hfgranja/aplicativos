@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-proxy
+  namespace: ait
+spec:
+  selector:
+    app: git-proxy
+  ports:
+    - port: 3003
+      targetPort: 3003

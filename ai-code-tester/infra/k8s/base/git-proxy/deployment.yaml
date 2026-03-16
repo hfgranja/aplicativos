@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-proxy
+  namespace: ait
+  labels:
+    app: git-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: git-proxy
+  template:
+    metadata:
+      labels:
+        app: git-proxy
+    spec:
+      containers:
+        - name: git-proxy
+          image: git-proxy:latest
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              value: "3003"
+            - name: NODE_ENV
+              value: production
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 3
+            periodSeconds: 10

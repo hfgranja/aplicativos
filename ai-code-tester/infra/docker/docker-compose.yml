@@ -1,0 +1,124 @@
+version: "3.9"
+
+# AI Code Tester — Local Dev Stack
+# Usage:
+#   OLLAMA_ORIGINS="http://localhost:5173" ollama serve  # Run Ollama separately
+#   docker compose up
+
+networks:
+  ait-net:
+    driver: bridge
+
+volumes:
+  ollama-models:
+
+services:
+  # ── Frontend (Vite dev server) ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../../
+      dockerfile: apps/frontend/Dockerfile
+      target: dev
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_CELL_API_URL: ""
+      VITE_LOCAL_MODE: "false"
+    volumes:
+      - ../../apps/frontend/src:/app/apps/frontend/src:ro
+    depends_on:
+      - analysis-service
+      - advisory-service
+      - git-proxy
+      - storage-service
+    networks: [ait-net]
+
+  # ── Analysis Service ───────────────────────────────────────────────────────
+  analysis-service:
+    build:
+      context: ../../
+      dockerfile: apps/analysis-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      CORS_ORIGIN: "http://localhost:5173"
+    networks: [ait-net]
+
+  # ── Advisory Service ──────────────────────────────────────────────────────
+  advisory-service:
+    build:
+      context: ../../
+      dockerfile: apps/advisory-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      CORS_ORIGIN: "http://localhost:5173"
+      OLLAMA_URL: "http://ollama:11434"
+      DEVSTRAL_MODEL: devstral
+      QWEN_MODEL: qwen3-coder
+    depends_on:
+      - ollama
+    networks: [ait-net]
+
+  # ── Git Proxy ─────────────────────────────────────────────────────────────
+  git-proxy:
+    build:
+      context: ../../
+      dockerfile: apps/git-proxy/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      CORS_ORIGIN: "http://localhost:5173"
+    networks: [ait-net]
+
+  # ── Storage Service (in-memory for local) ─────────────────────────────────
+  storage-service:
+    build:
+      context: ../../
+      dockerfile: apps/storage-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      CLOUD_PROVIDER: local
+      CORS_ORIGIN: "http://localhost:5173"
+    networks: [ait-net]
+
+  # ── Cell Health ───────────────────────────────────────────────────────────
+  cell-health:
+    build:
+      context: ../../
+      dockerfile: apps/cell-health/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      CELL_ID: local-dev
+      ANALYSIS_URL: "http://analysis-service:3001"
+      ADVISORY_URL: "http://advisory-service:3002"
+      GIT_PROXY_URL: "http://git-proxy:3003"
+      STORAGE_URL: "http://storage-service:3004"
+    depends_on:
+      - analysis-service
+      - advisory-service
+      - git-proxy
+      - storage-service
+    networks: [ait-net]
+
+  # ── Ollama (sidecar-style for local) ──────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_ORIGINS: "http://localhost:5173,http://advisory-service:3002"
+    networks: [ait-net]

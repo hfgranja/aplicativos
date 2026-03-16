@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cell-health
+  namespace: ait
+spec:
+  selector:
+    app: cell-health
+  ports:
+    - port: 3005
+      targetPort: 3005

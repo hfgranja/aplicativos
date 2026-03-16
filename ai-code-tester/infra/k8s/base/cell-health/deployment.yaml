@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cell-health
+  namespace: ait
+  labels:
+    app: cell-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cell-health
+  template:
+    metadata:
+      labels:
+        app: cell-health
+    spec:
+      containers:
+        - name: cell-health
+          image: cell-health:latest
+          ports:
+            - containerPort: 3005
+          env:
+            - name: PORT
+              value: "3005"
+            - name: CELL_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: cell-config
+                  key: cell_id
+            - name: ANALYSIS_URL
+              value: "http://analysis-service:3001"
+            - name: ADVISORY_URL
+              value: "http://advisory-service:3002"
+            - name: GIT_PROXY_URL
+              value: "http://git-proxy:3003"
+            - name: STORAGE_URL
+              value: "http://storage-service:3004"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 5
+            periodSeconds: 15

@@ -1,0 +1,90 @@
+name: Deploy — Alibaba Cloud (ap-east-1)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy"
+        required: false
+        default: ""
+
+env:
+  ALIBABA_REGION: ap-east-1
+  ACK_CLUSTER_ID: ${{ secrets.ALIBABA_ACK_CLUSTER_ID }}
+  ACR_REGISTRY: registry.ap-east-1.aliyuncs.com/${{ secrets.ALIBABA_NAMESPACE }}
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  SERVICES: "analysis-service advisory-service git-proxy storage-service cell-health frontend"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install aliyun CLI
+        run: |
+          curl -sSL https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz | tar -xz
+          sudo mv aliyun /usr/local/bin/
+          aliyun configure set \
+            --profile default \
+            --mode AK \
+            --region $ALIBABA_REGION \
+            --access-key-id ${{ secrets.ALIBABA_ACCESS_KEY_ID }} \
+            --access-key-secret ${{ secrets.ALIBABA_ACCESS_KEY_SECRET }}
+
+      - name: Login to ACR
+        run: |
+          docker login \
+            --username ${{ secrets.ALIBABA_ACR_USERNAME }} \
+            --password ${{ secrets.ALIBABA_ACR_PASSWORD }} \
+            registry.${{ env.ALIBABA_REGION }}.aliyuncs.com
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push all images
+        run: |
+          for SERVICE in $SERVICES; do
+            docker buildx build \
+              --file apps/$SERVICE/Dockerfile \
+              --tag $ACR_REGISTRY/$SERVICE:$IMAGE_TAG \
+              --push \
+              .
+          done
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Get ACK kubeconfig
+        run: |
+          aliyun cs DescribeClusterUserKubeconfig \
+            --ClusterId $ACK_CLUSTER_ID \
+            --PrivateIpAddress false \
+            | jq -r '.config' > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy with Kustomize
+        run: |
+          cd infra/k8s/overlays/alibaba
+          kustomize edit set image \
+            analysis-service=$ACR_REGISTRY/analysis-service:$IMAGE_TAG \
+            advisory-service=$ACR_REGISTRY/advisory-service:$IMAGE_TAG \
+            git-proxy=$ACR_REGISTRY/git-proxy:$IMAGE_TAG \
+            storage-service=$ACR_REGISTRY/storage-service:$IMAGE_TAG \
+            cell-health=$ACR_REGISTRY/cell-health:$IMAGE_TAG \
+            frontend=$ACR_REGISTRY/frontend:$IMAGE_TAG
+          kubectl apply -k .
+          kubectl rollout status deployment -n ait-alibaba-ap-east-1 --timeout=300s
+
+      - name: Smoke test
+        run: |
+          INGRESS_IP=$(kubectl get ingress -n ait-alibaba-ap-east-1 -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}')
+          for i in $(seq 1 10); do
+            STATUS=$(curl -sf http://$INGRESS_IP/health | jq -r '.status' 2>/dev/null || echo "error")
+            if [ "$STATUS" = "healthy" ]; then echo "Healthy"; exit 0; fi
+            echo "Attempt $i: $STATUS — retrying in 15s..."; sleep 15
+          done
+          exit 1
