@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { fetchMarketIndicators, INDICATOR_META } from "./services/financialData";
 import { runMonteCarlo, getProductRecommendations, getPhilosophyBlend, INVESTOR_PROFILES } from "./services/monteCarlo";
+import { fetchMacroSignals } from "./services/macroSignals";
 
 // ─── Investor database ────────────────────────────────────────────────────────
 
@@ -508,6 +509,232 @@ function FanChart({ fanData, years, totalInvested }) {
   );
 }
 
+// ─── Macro Signals Panel ──────────────────────────────────────────────────────
+
+function MacroGauge({ score, color }) {
+  // Simple arc gauge: score 0-100 maps to 0-180 degrees
+  const angle  = (score / 100) * 180;       // 0 = far left, 180 = far right
+  const rad    = (angle - 90) * (Math.PI / 180);
+  const cx = 60, cy = 60, r = 46;
+  const nx = cx + r * Math.cos(rad);
+  const ny = cy + r * Math.sin(rad);
+  const trackPath = `M 14 60 A 46 46 0 0 1 106 60`;
+  return (
+    <svg viewBox="0 0 120 70" width={110} height={70} style={{ overflow: "visible" }}>
+      {/* Track */}
+      <path d={trackPath} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={10} strokeLinecap="round" />
+      {/* Fill */}
+      <path d={trackPath} fill="none" stroke={color} strokeWidth={10} strokeLinecap="round"
+        strokeDasharray={`${Math.PI * 46 * (score / 100)} ${Math.PI * 46}`} opacity={0.5} />
+      {/* Needle */}
+      <line x1={cx} y1={cy} x2={nx} y2={ny} stroke={color} strokeWidth={2.5} strokeLinecap="round" />
+      <circle cx={cx} cy={cy} r={4} fill={color} />
+      {/* Score label */}
+      <text x={cx} y={cy + 18} textAnchor="middle" fill={color}
+        fontSize={13} fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+        {score}
+      </text>
+    </svg>
+  );
+}
+
+function NewsHeadlineList({ items }) {
+  const mono = { fontFamily: "'JetBrains Mono', monospace" };
+  const BADGE = {
+    positivo: { bg: "rgba(64,145,108,0.12)", border: "rgba(64,145,108,0.3)", color: "#40916C" },
+    negativo: { bg: "rgba(233,69,96,0.10)",  border: "rgba(233,69,96,0.3)",  color: "#E94560" },
+    neutro:   { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)", color: "#888" },
+  };
+  if (!items || items.length === 0) return (
+    <div style={{ ...mono, fontSize: 10, color: "#444", padding: "8px 0" }}>
+      Notícias indisponíveis (limite de requisições atingido ou CORS)
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+      {items.slice(0, 8).map((item, i) => {
+        const b = BADGE[item.badge] ?? BADGE.neutro;
+        return (
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <span style={{
+              ...mono, fontSize: 9, padding: "2px 6px", borderRadius: 4,
+              background: b.bg, border: `1px solid ${b.border}`, color: b.color,
+              whiteSpace: "nowrap", flexShrink: 0,
+            }}>
+              {item.badge}
+            </span>
+            <a href={item.link} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: 11, color: "#bbb", textDecoration: "none", lineHeight: 1.4,
+            }}
+              onMouseEnter={e => e.target.style.color = "#fff"}
+              onMouseLeave={e => e.target.style.color = "#bbb"}
+            >
+              {item.title}
+            </a>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MacroSignalsPanel({ macroSignals, loading }) {
+  const [expanded, setExpanded] = useState(false);
+  const mono = { fontFamily: "'JetBrains Mono', monospace" };
+
+  return (
+    <div style={{
+      background: "rgba(255,255,255,0.02)",
+      border: "1px solid rgba(255,255,255,0.06)",
+      borderRadius: 12,
+      padding: "18px 20px",
+      marginBottom: 20,
+    }}>
+      {/* Header */}
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 12 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div>
+            <div style={{ ...mono, fontSize: 9, letterSpacing: 3, color: "#666", textTransform: "uppercase", marginBottom: 3 }}>
+              Sinais Macro · Ambiente de Mercado
+            </div>
+            <div style={{ fontSize: 12, color: "#aaa" }}>
+              {loading
+                ? "Carregando indicadores em tempo real…"
+                : macroSignals
+                  ? `Ambiente ${macroSignals.riskLevel} — ${macroSignals.signals.filter(s => s.muAdj !== 0 || s.sM !== 1).length} sinais ativos`
+                  : "Dados indisponíveis"
+              }
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {macroSignals && !loading && (
+            <>
+              <MacroGauge score={macroSignals.compositeScore} color={macroSignals.riskColor} />
+              <div style={{
+                background: `rgba(${macroSignals.compositeScore >= 70 ? "64,145,108" : macroSignals.compositeScore >= 50 ? "212,163,115" : macroSignals.compositeScore >= 30 ? "230,126,34" : "233,69,96"},0.10)`,
+                border: `1px solid ${macroSignals.riskColor}44`,
+                borderRadius: 6, padding: "4px 10px",
+                ...mono, fontSize: 10, color: macroSignals.riskColor,
+              }}>
+                {macroSignals.riskLevel}
+              </div>
+            </>
+          )}
+          {loading && <div style={{ ...mono, fontSize: 10, color: "#444" }}>⟳</div>}
+          <div style={{ ...mono, fontSize: 11, color: "#555" }}>{expanded ? "▲" : "▼"}</div>
+        </div>
+      </div>
+
+      {/* Expanded section */}
+      {expanded && macroSignals && !loading && (
+        <div style={{ marginTop: 18 }}>
+          {/* Model impact summary */}
+          <div style={{
+            display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap",
+          }}>
+            <div style={{
+              background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "10px 14px",
+              flex: 1, minWidth: 140,
+            }}>
+              <div style={{ ...mono, fontSize: 9, color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
+                Ajuste μ (macro)
+              </div>
+              <div style={{
+                ...mono, fontSize: 15, fontWeight: 700,
+                color: macroSignals.macroAdj.muAdj >= 0 ? "#40916C" : "#E94560",
+              }}>
+                {macroSignals.macroAdj.muAdj >= 0 ? "+" : ""}
+                {(macroSignals.macroAdj.muAdj * 100).toFixed(2)}% a.a.
+              </div>
+            </div>
+            <div style={{
+              background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "10px 14px",
+              flex: 1, minWidth: 140,
+            }}>
+              <div style={{ ...mono, fontSize: 9, color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
+                Ajuste σ (macro)
+              </div>
+              <div style={{
+                ...mono, fontSize: 15, fontWeight: 700,
+                color: macroSignals.macroAdj.sigmaMultiplier <= 1 ? "#40916C" : "#E94560",
+              }}>
+                ×{macroSignals.macroAdj.sigmaMultiplier.toFixed(3)}
+              </div>
+            </div>
+            {macroSignals.rawData?.ibov?.price && (
+              <div style={{
+                background: "rgba(0,0,0,0.25)", borderRadius: 8, padding: "10px 14px",
+                flex: 1, minWidth: 160,
+              }}>
+                <div style={{ ...mono, fontSize: 9, color: "#555", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 }}>
+                  Ibovespa
+                </div>
+                <div style={{ ...mono, fontSize: 14, fontWeight: 700, color: "#D4A373" }}>
+                  {macroSignals.rawData.ibov.price.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
+                  <span style={{
+                    fontSize: 11, marginLeft: 8,
+                    color: macroSignals.rawData.ibov.change1d >= 0 ? "#40916C" : "#E94560",
+                  }}>
+                    {macroSignals.rawData.ibov.change1d >= 0 ? "+" : ""}
+                    {macroSignals.rawData.ibov.change1d?.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Signal grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8, marginBottom: 18 }}>
+            {macroSignals.signals.map((sig) => (
+              <div key={sig.id} style={{
+                background: "rgba(0,0,0,0.2)",
+                border: `1px solid ${sig.color}22`,
+                borderLeft: `3px solid ${sig.color}`,
+                borderRadius: 8, padding: "10px 12px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: "#999" }}>{sig.icon} {sig.name}</span>
+                  <span style={{ ...mono, fontSize: 9, color: sig.color,
+                    background: `${sig.color}18`, padding: "1px 6px", borderRadius: 3 }}>
+                    {sig.status}
+                  </span>
+                </div>
+                <div style={{ ...mono, fontSize: 13, fontWeight: 700, color: "#ddd", marginBottom: 3 }}>
+                  {sig.value}
+                </div>
+                <div style={{ ...mono, fontSize: 9, color: "#444" }}>{sig.impactDesc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* News headlines */}
+          <div style={{
+            background: "rgba(0,0,0,0.15)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            borderRadius: 8, padding: "12px 14px",
+          }}>
+            <div style={{ ...mono, fontSize: 9, letterSpacing: 2, color: "#555",
+              textTransform: "uppercase", marginBottom: 10 }}>
+              Últimas Manchetes — InfoMoney
+            </div>
+            <NewsHeadlineList items={macroSignals.newsItems} />
+          </div>
+
+          <div style={{ ...mono, fontSize: 9, color: "#333", marginTop: 10, lineHeight: 1.6 }}>
+            Sinais atualizados em {new Date(macroSignals.fetchedAt).toLocaleTimeString("pt-BR")} ·
+            Fontes: BCB (EMBI+, PNAD, Focus), brapi.dev (Ibovespa), InfoMoney/rss2json (notícias) ·
+            Ajustes macro são somados à calibração de filosofia dos mentores para gerar os parâmetros finais do modelo.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Philosophy blend card ────────────────────────────────────────────────────
 
 const ASSET_LABELS = {
@@ -711,12 +938,13 @@ function MetricCard({ label, value, sub, color = "#D4A373", alert = false }) {
   );
 }
 
-function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange, investorIds = [] }) {
+function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange, investorIds = [], macroSignals = null }) {
   const [simResult, setSimResult] = useState(null);
   const [running, setRunning] = useState(false);
 
-  // Stable serialisation of investorIds for effect deps
+  // Stable serialisation for effect deps
   const investorKey = investorIds.slice().sort().join(",");
+  const macroKey    = macroSignals?.compositeScore ?? "null";
 
   useEffect(() => {
     if (!marketData) return;
@@ -731,6 +959,7 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange, 
         monthlyAmount: amount,
         years: horizon,
         selectedInvestorIds: investorIds,
+        macroAdjustment: macroSignals?.macroAdj ?? null,
         simulations: 2000,
       });
       setSimResult(result);
@@ -739,7 +968,7 @@ function PredictionPanel({ alloc, amount, marketData, horizon, onHorizonChange, 
 
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alloc, amount, marketData, horizon, investorKey]);
+  }, [alloc, amount, marketData, horizon, investorKey, macroKey]);
 
   const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
@@ -1048,14 +1277,22 @@ export default function InvestmentAdvisor() {
   const [horizon, setHorizon]     = useState(10);
   const [marketData, setMarketData] = useState(null);
   const [marketLoading, setMarketLoading] = useState(true);
+  const [macroSignals, setMacroSignals] = useState(null);
+  const [macroLoading, setMacroLoading] = useState(true);
   const resultRef = useRef(null);
 
-  // Fetch live BCB data once on mount
+  // Fetch live BCB data once on mount, then fetch macro signals
   useEffect(() => {
     setMarketLoading(true);
     fetchMarketIndicators().then((data) => {
       setMarketData(data);
       setMarketLoading(false);
+      // Fetch macro signals after we have SELIC (needed for direction classification)
+      setMacroLoading(true);
+      fetchMacroSignals(data?.selic ?? 13.75).then((signals) => {
+        setMacroSignals(signals);
+        setMacroLoading(false);
+      });
     });
   }, []);
 
@@ -1428,6 +1665,12 @@ export default function InvestmentAdvisor() {
               ))}
             </div>
 
+            {/* ── Macro Signals Panel ── */}
+            <MacroSignalsPanel
+              macroSignals={macroSignals}
+              loading={macroLoading}
+            />
+
             {/* ── Monte Carlo Prediction Panel ── */}
             <PredictionPanel
               alloc={alloc.avg}
@@ -1436,6 +1679,7 @@ export default function InvestmentAdvisor() {
               horizon={horizon}
               onHorizonChange={setHorizon}
               investorIds={selected}
+              macroSignals={macroSignals}
             />
 
             {/* ── Where to invest ── */}

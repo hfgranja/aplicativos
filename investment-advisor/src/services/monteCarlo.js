@@ -182,12 +182,18 @@ function blendProfiles(selectedIds) {
 /**
  * Run Monte Carlo portfolio simulation.
  *
+ * Three-layer calibration:
+ *   Layer 1 — BCB macro base params (SELIC/IPCA driven)
+ *   Layer 2 — Philosophy blend (investor profiles)
+ *   Layer 3 — Live macro signals (EMBI+, Focus, IBOV, news sentiment)
+ *
  * @param {Object}   allocation          - { acoesBR, acoesExt, rendaFixa, fundos, reserva } in %
  * @param {number}   selic               - annual SELIC rate (%)
  * @param {number}   ipcaAnual           - annual IPCA (%)
  * @param {number}   monthlyAmount       - monthly contribution (BRL)
  * @param {number}   years               - investment horizon
  * @param {string[]} selectedInvestorIds - philosopher IDs to blend into calibration
+ * @param {Object}   macroAdjustment     - { muAdj, sigmaMultiplier } from fetchMacroSignals()
  * @param {number}   simulations         - Monte Carlo paths (default 2000)
  * @returns {Object} full simulation results
  */
@@ -198,32 +204,41 @@ export function runMonteCarlo({
   monthlyAmount,
   years,
   selectedInvestorIds = [],
+  macroAdjustment = null,
   simulations = 2000,
 }) {
-  // 1. Base params from macro data
+  // Layer 1: Base params from macro data
   const base = buildBaseParams(selic, ipcaAnual);
 
-  // 2. Blend investor philosophy profiles
+  // Layer 2: Blend investor philosophy profiles
   const { assetAdj, rebalBonus } = blendProfiles(selectedInvestorIds);
 
-  // 3. Apply philosophy adjustments to base params
+  // Layer 3: Live macro signal adjustments (applied uniformly to all asset classes)
+  const macroMuAdj  = macroAdjustment?.muAdj          ?? 0;
+  const macroSigmaM = macroAdjustment?.sigmaMultiplier ?? 1;
+
+  // Apply layers 2 + 3 on top of base params
   const calibrated = {};
   ASSET_KEYS.forEach((key) => {
+    const philoMu    = base[key].mu    + assetAdj[key].muAdj;
+    const philoSigma = base[key].sigma * assetAdj[key].sM;
     calibrated[key] = {
-      mu:    base[key].mu    + assetAdj[key].muAdj,
-      sigma: base[key].sigma * assetAdj[key].sM,
+      mu:        philoMu    + macroMuAdj,   // layer 3 mu shift
+      sigma:     philoSigma * macroSigmaM,  // layer 3 sigma scale
       baseMu:    base[key].mu,
       baseSigma: base[key].sigma,
-      muAdj:  assetAdj[key].muAdj,
-      sigmaM: assetAdj[key].sM,
+      philoMuAdj:  assetAdj[key].muAdj,
+      philoSigmaM: assetAdj[key].sM,
+      macroMuAdj,
+      macroSigmaM,
     };
   });
 
-  // 4. Portfolio-level weighted mu and sigma
+  // Portfolio-level weighted mu and sigma
   const w = ASSET_KEYS.map((k) => (allocation[k] || 0) / 100);
-  const portMuRaw    = ASSET_KEYS.reduce((s, k, i) => s + w[i] * calibrated[k].mu, 0);
-  const portMu       = portMuRaw + rebalBonus;  // add rebalancing premium
-  const portSigma    = Math.sqrt(
+  const portMuRaw = ASSET_KEYS.reduce((s, k, i) => s + w[i] * calibrated[k].mu, 0);
+  const portMu    = portMuRaw + rebalBonus;  // add rebalancing premium
+  const portSigma = Math.sqrt(
     ASSET_KEYS.reduce((s, k, i) => s + Math.pow(w[i] * calibrated[k].sigma, 2), 0)
   );
 
@@ -232,7 +247,7 @@ export function runMonteCarlo({
   const months = years * 12;
   const totalInvested = monthlyAmount * months;
 
-  // 5. Run simulations
+  // Run simulations
   const finalValues = new Float64Array(simulations);
   const yearlyBuckets = Array.from({ length: years + 1 }, () => new Float64Array(simulations));
 
