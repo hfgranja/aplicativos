@@ -12,6 +12,11 @@ const TECHNIQUES = [
   { name: 'Tratamento de Erros', icon: '🔧' },
   { name: 'Contratos de API', icon: '🔌' },
   { name: 'Testes por Mutação', icon: '🧬' },
+  { name: 'Property-Based Testing', icon: '🎲' },
+  { name: 'Asserções Probabilísticas', icon: '🎯' },
+  { name: 'AI Code Review', icon: '🤖' },
+  { name: 'Validação Visual', icon: '👁️' },
+  { name: 'Cross-Model Validation', icon: '🔀' },
 ]
 
 const TOTAL_TECHNIQUES = TECHNIQUES.length

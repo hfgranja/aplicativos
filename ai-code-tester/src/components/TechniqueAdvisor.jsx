@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { exportAsJSONL, clearAll } from '../services/trainingDataService.js'
+import { getIncidents, getIncidentStats } from '../services/incidentFeedService.js'
 
 const STATUS_LABELS = {
   idle: null,
@@ -30,6 +31,28 @@ export default function TechniqueAdvisor({ advisor, onConfigUpdate }) {
   })
   const [exporting, setExporting] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [incidents, setIncidents] = useState([])
+  const [incidentStats, setIncidentStats] = useState(null)
+  const [incidentsLoading, setIncidentsLoading] = useState(false)
+  const [showIncidents, setShowIncidents] = useState(false)
+
+  const loadIncidents = useCallback(async (force = false) => {
+    setIncidentsLoading(true)
+    try {
+      const [list, stats] = await Promise.all([
+        getIncidents(force),
+        getIncidentStats(),
+      ])
+      setIncidents(list)
+      setIncidentStats(stats)
+    } catch {
+      // silencioso
+    } finally {
+      setIncidentsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadIncidents(false) }, [loadIncidents])
 
   const {
     suggestions = [],
@@ -219,6 +242,126 @@ export default function TechniqueAdvisor({ advisor, onConfigUpdate }) {
             </div>
           </div>
         )}
+
+        {/* Incidents panel */}
+        <div style={{ marginBottom: 16 }}>
+          <div
+            onClick={() => setShowIncidents(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', padding: '10px 14px',
+              background: 'rgba(255,159,67,0.05)', border: '1px solid rgba(255,159,67,0.2)',
+              borderRadius: showIncidents ? '8px 8px 0 0' : 8,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>📰</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#FF9F43' }}>
+                Incidentes Reais de Código IA
+              </span>
+              {incidentStats && (
+                <span style={{
+                  fontSize: 10, padding: '2px 8px', borderRadius: 20,
+                  background: 'rgba(255,159,67,0.15)', color: '#FF9F43', fontWeight: 600,
+                }}>
+                  {incidentStats.total} incidente(s)
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); loadIncidents(true) }}
+                disabled={incidentsLoading}
+                style={{
+                  fontSize: 11, padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+                  background: 'rgba(255,159,67,0.1)', border: '1px solid rgba(255,159,67,0.3)',
+                  color: '#FF9F43', fontWeight: 600,
+                }}
+              >
+                {incidentsLoading ? '⏳' : '🔄'} Atualizar
+              </button>
+              <span style={{ color: 'rgba(232,232,240,0.3)', fontSize: 12 }}>{showIncidents ? '▲' : '▼'}</span>
+            </div>
+          </div>
+
+          {showIncidents && (
+            <div style={{
+              border: '1px solid rgba(255,159,67,0.2)', borderTop: 'none',
+              borderRadius: '0 0 8px 8px', background: 'rgba(255,159,67,0.02)',
+              padding: '12px 14px',
+            }}>
+              {incidentsLoading && (
+                <div style={{ textAlign: 'center', padding: 12, fontSize: 12, color: 'rgba(232,232,240,0.4)' }}>
+                  <Spinner color="#FF9F43" /> Buscando incidentes...
+                </div>
+              )}
+              {!incidentsLoading && incidents.length === 0 && (
+                <div style={{ textAlign: 'center', padding: 12, fontSize: 12, color: 'rgba(232,232,240,0.3)' }}>
+                  Nenhum incidente carregado. Clique em Atualizar.
+                </div>
+              )}
+              {!incidentsLoading && incidents.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {incidents.slice(0, 8).map((inc, i) => (
+                    <div key={i} style={{
+                      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                      borderRadius: 8, padding: '10px 12px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#E8E8F0', lineHeight: 1.4 }}>
+                          {inc.company && <span style={{ color: '#FF9F43' }}>{inc.company} · </span>}
+                          {inc.title}
+                        </span>
+                        <span style={{
+                          fontSize: 9, padding: '2px 6px', borderRadius: 10, flexShrink: 0,
+                          background: inc.source === 'hn' ? 'rgba(255,102,0,0.15)' : 'rgba(108,99,255,0.15)',
+                          border: `1px solid ${inc.source === 'hn' ? 'rgba(255,102,0,0.3)' : 'rgba(108,99,255,0.3)'}`,
+                          color: inc.source === 'hn' ? '#FF6600' : '#6C63FF', fontWeight: 600,
+                        }}>
+                          {inc.source === 'hn' ? 'HN' : 'curado'}
+                        </span>
+                      </div>
+                      {inc.impact && (
+                        <div style={{ fontSize: 11, color: '#FF4D6D', marginBottom: 4 }}>
+                          💥 {inc.impact}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        {inc.tags && inc.tags.length > 0 && (
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {inc.tags.map((tag, ti) => (
+                              <span key={ti} style={{
+                                fontSize: 9, padding: '1px 6px', borderRadius: 10,
+                                background: 'rgba(255,255,255,0.05)', color: 'rgba(232,232,240,0.4)',
+                              }}>
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {inc.url && (
+                          <a
+                            href={inc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 10, color: '#45B7D1', textDecoration: 'none', flexShrink: 0 }}
+                          >
+                            ver mais →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {incidentStats && incidentStats.lastFetch && (
+                    <div style={{ fontSize: 10, color: 'rgba(232,232,240,0.2)', textAlign: 'right', marginTop: 4 }}>
+                      Atualizado: {new Date(incidentStats.lastFetch).toLocaleString('pt-BR')}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Training data stats */}
         <div style={{

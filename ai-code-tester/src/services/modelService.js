@@ -14,12 +14,16 @@
  *   ollama pull devstral
  */
 
+import { getIncidentContext } from './incidentFeedService.js'
+
 const CURRENT_TECHNIQUES = [
   'Análise Estática', 'Complexidade Ciclomática', 'Duplicação de Código',
   'Segurança', 'Segurança de Tipos', 'Risco de Dependências',
   'Cobertura de Testes', 'Qualidade de Documentação', 'Boas Práticas',
   'Anti-padrões de Performance', 'Tratamento de Erros',
   'Contratos de API', 'Testes por Mutação',
+  'Property-Based Testing', 'Asserções Probabilísticas',
+  'AI Code Review', 'Validação Visual Automatizada', 'Cross-Model Validation',
 ]
 
 /**
@@ -124,6 +128,7 @@ function buildCurrentContext(currentResults) {
  */
 async function stageGenerate(ollamaUrl, qwenModel, historyCtx, currentCtx, onStatus) {
   onStatus('querying-qwen')
+  const incidentCtx = await getIncidentContext(6).catch(() => '')
   const systemPrompt = `Você é um especialista em qualidade de código e ferramentas de análise estática.
 Analise dados de uso de uma ferramenta de validação de código e sugira NOVAS técnicas de análise ainda não implementadas.
 
@@ -136,7 +141,7 @@ Cada item deve ter: name, icon (emoji), description, priority (high/medium/low),
   const userPrompt = `Dados históricos: ${historyCtx}
 
 ${currentCtx}
-
+${incidentCtx ? `\n${incidentCtx}\n` : ''}
 Sugira 2 ou 3 novas técnicas de análise que agregariam valor com base nos problemas observados.
 Foque em técnicas que podem ser implementadas via análise estática de AST no browser.`
 
@@ -154,6 +159,7 @@ Foque em técnicas que podem ser implementadas via análise estática de AST no 
 async function stageEnrich(ollamaUrl, devstralModel, candidates, historyCtx, currentCtx, onStatus) {
   onStatus('querying-devstral')
   if (!candidates.length) return []
+  const incidentCtx = await getIncidentContext(4).catch(() => '')
 
   const systemPrompt = `Você é um arquiteto de ferramentas de análise de código AST.
 Avalie estas sugestões de técnicas de análise de código e enriqueça-as.
@@ -169,7 +175,7 @@ Responda APENAS com o array JSON enriquecido, sem texto adicional.`
 
   const userPrompt = `Dados históricos: ${historyCtx}
 ${currentCtx}
-
+${incidentCtx ? `\n${incidentCtx}\n` : ''}
 Candidatos para enriquecer:
 ${JSON.stringify(candidates, null, 2)}`
 

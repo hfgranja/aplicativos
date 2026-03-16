@@ -5,7 +5,7 @@
  */
 
 const DB_NAME = 'ait-training-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'analyses'
 
 let _db = null
@@ -19,6 +19,11 @@ function openDB() {
       if (!db.objectStoreNames.contains(STORE)) {
         const store = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true })
         store.createIndex('timestamp', 'timestamp', { unique: false })
+      }
+      if (!db.objectStoreNames.contains('incidents')) {
+        const inc = db.createObjectStore('incidents', { keyPath: 'id', autoIncrement: true })
+        inc.createIndex('fetchedAt', 'fetchedAt', { unique: false })
+        inc.createIndex('source', 'source', { unique: false })
       }
     }
     req.onsuccess = (e) => {

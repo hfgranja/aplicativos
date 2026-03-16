@@ -39,7 +39,7 @@ export default function AiCodeTester() {
               AI Code Tester
             </div>
             <div style={{ fontSize: 11, color: 'rgba(232,232,240,0.4)', letterSpacing: 0.5 }}>
-              Validação com 13 Técnicas Globais
+              Validação com 18 Técnicas Globais
             </div>
           </div>
         </div>
@@ -73,7 +73,7 @@ export default function AiCodeTester() {
               textDecoration: 'none', fontWeight: 500,
             }}
           >
-            13 Técnicas
+            18 Técnicas
           </a>
         </div>
       </header>
@@ -99,7 +99,7 @@ export default function AiCodeTester() {
             Valide seu código gerado por IA
             <br />
             <span style={{ background: 'linear-gradient(90deg, #6C63FF, #00D4AA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              com 13 técnicas profissionais
+              com 18 técnicas profissionais
             </span>
           </h1>
           <p style={{ fontSize: 16, color: 'rgba(232,232,240,0.5)', maxWidth: 560, margin: '0 auto 16px', lineHeight: 1.7 }}>
@@ -180,7 +180,7 @@ export default function AiCodeTester() {
         display: 'flex', justifyContent: 'center', gap: 24, flexWrap: 'wrap',
       }}>
         <span>AI Code Tester v1.0</span>
-        <span>13 Técnicas de Validação</span>
+        <span>18 Técnicas de Validação</span>
         <span>GitHub · GitLab · Bitbucket · Azure DevOps</span>
         <span>Análise 100% no browser · sem envio de dados</span>
       </footer>
@@ -202,4 +202,9 @@ const TECHNIQUES_LIST = [
   { name: 'Erros', icon: '🔧', color: '#98D8C8' },
   { name: 'API Contracts', icon: '🔌', color: '#F0A500' },
   { name: 'Mutação', icon: '🧬', color: '#E040FB' },
+  { name: 'Property-Based', icon: '🎲', color: '#FF9F43' },
+  { name: 'Probabilísticas', icon: '🎯', color: '#A29BFE' },
+  { name: 'AI Code Review', icon: '🤖', color: '#FD79A8' },
+  { name: 'Validação Visual', icon: '👁️', color: '#00B894' },
+  { name: 'Cross-Model', icon: '🔀', color: '#74B9FF' },
 ]
