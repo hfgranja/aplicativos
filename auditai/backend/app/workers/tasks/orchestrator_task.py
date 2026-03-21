@@ -23,7 +23,9 @@ ENGINE_MAP = {
     "fuzzing": ("engines.fuzzing.engine", "FuzzingEngine"),
     "differential": ("engines.differential.engine", "DifferentialEngine"),
     "integration": ("engines.integration.engine", "IntegrationEngine"),
+    "e2e": ("engines.e2e.engine", "E2EEngine"),
     "performance": ("engines.performance.engine", "PerformanceEngine"),
+    "security": ("engines.security.engine", "SecurityEngine"),
     "chaos": ("engines.chaos.engine", "ChaosEngine"),
 }
 

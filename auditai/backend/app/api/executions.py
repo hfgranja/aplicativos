@@ -13,11 +13,11 @@ from app.schemas.execution import ExecutionCreate, ExecutionOut, TestRunOut
 router = APIRouter(prefix="/executions", tags=["executions"])
 
 DEFAULT_ENGINES = {
-    "FAST": ["sast", "contract"],
+    "FAST": ["sast", "contract", "security"],
     "FULL": ["sast", "property_based", "mutation", "contract", "regression", "fuzzing", "differential",
-             "integration", "performance"],
+             "integration", "e2e", "performance", "security"],
     "REGULATORY": ["sast", "property_based", "mutation", "contract", "regression", "fuzzing",
-                   "differential", "integration", "performance", "chaos"],
+                   "differential", "integration", "e2e", "performance", "security", "chaos"],
 }
 
 
