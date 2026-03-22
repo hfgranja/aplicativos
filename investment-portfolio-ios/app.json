@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Portfólio de Investimentos",
+    "slug": "investment-portfolio-ios",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "investmentportfolio",
+    "splash": {
+      "backgroundColor": "#0a0a0f"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.investment.portfolio",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Usado para autenticar acesso ao aplicativo"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0a0a0f"
+      },
+      "package": "com.investment.portfolio"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-background-fetch",
+        {
+          "ios": {
+            "minimumFetchInterval": 360
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
