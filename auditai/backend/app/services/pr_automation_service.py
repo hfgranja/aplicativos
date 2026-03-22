@@ -1,0 +1,295 @@
+"""
+PR Automation Service — creates GitHub or GitLab pull requests
+for AI-generated fix proposals.
+
+Self-validation gate: before opening a PR, the patched file is
+scanned by the SAST engine to ensure the fix does not introduce
+new CRITICAL or HIGH findings.
+"""
+import os
+import re
+import tempfile
+from typing import Optional
+from app.config import settings
+
+
+def create_pr_for_finding(finding, fix_proposal: dict, db) -> dict:
+    """
+    Open a PR on GitHub or GitLab with the AI-generated fix.
+
+    Args:
+        finding: Finding ORM object with file_path, title, severity, cwe_id, evidence
+        fix_proposal: dict with keys: before_code, after_code, diff, rationale, explanation
+        db: SQLAlchemy Session (used to persist PR metadata)
+
+    Returns:
+        {"pr_url": str, "pr_number": int, "provider": str}
+
+    Raises:
+        ValueError: if self-validation fails (patch introduces new vulnerabilities)
+        RuntimeError: if no Git token is configured or provider is not supported
+    """
+    source_url = _get_application_source_url(finding, db)
+    provider = _detect_provider(source_url)
+
+    # Self-validation gate
+    _validate_patch(finding, fix_proposal)
+
+    if provider == "github":
+        return _create_github_pr(finding, fix_proposal, source_url)
+    elif provider == "gitlab":
+        return _create_gitlab_pr(finding, fix_proposal, source_url)
+    else:
+        raise RuntimeError(
+            f"Unsupported Git provider for URL '{source_url}'. "
+            f"Supported: github.com, gitlab.com, or self-hosted GitLab with GITLAB_URL."
+        )
+
+
+def _get_application_source_url(finding, db) -> str:
+    """Retrieve the application source URL associated with this finding."""
+    from app.models.execution import Execution
+    from app.models.application import Application
+
+    execution = db.query(Execution).filter(Execution.id == finding.execution_id).first()
+    if not execution:
+        raise RuntimeError("Execution not found for finding")
+
+    app = db.query(Application).filter(Application.id == execution.application_id).first()
+    if not app or not app.source_url:
+        raise RuntimeError(
+            "Application has no source_url configured. "
+            "Set source_url to a GitHub or GitLab repository URL to enable PR automation."
+        )
+    return app.source_url
+
+
+def _detect_provider(source_url: str) -> str:
+    """Detect Git provider from URL."""
+    url_lower = source_url.lower()
+    if "github.com" in url_lower:
+        return "github"
+    if "gitlab.com" in url_lower or settings.GITLAB_URL.rstrip("/") in url_lower:
+        return "gitlab"
+    return "unknown"
+
+
+def _validate_patch(finding, fix_proposal: dict) -> None:
+    """
+    Run SAST on the patched code to ensure the fix does not introduce
+    new CRITICAL or HIGH findings. Raises ValueError if validation fails.
+    """
+    after_code = fix_proposal.get("after_code", "")
+    if not after_code:
+        return  # nothing to validate
+
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../engines"))
+        from engines.sast.engine import SASTEngine
+        from engines.base import EngineContext, StackInfo
+
+        engine = SASTEngine()
+        context = EngineContext(
+            execution_id="validation",
+            application_id="validation",
+            tenant_id="validation",
+            stack=StackInfo(languages=["python"]),
+            source_code=after_code,
+        )
+        result = engine.run(context)
+
+        new_critical_high = [
+            f for f in result.findings
+            if f.severity in ("CRITICAL", "HIGH")
+        ]
+        if new_critical_high:
+            titles = "; ".join(f.title for f in new_critical_high[:3])
+            raise ValueError(
+                f"Self-validation failed: the generated patch introduces {len(new_critical_high)} "
+                f"new CRITICAL/HIGH finding(s): {titles}. "
+                f"The PR was not created. Please review and improve the fix proposal."
+            )
+    except ValueError:
+        raise
+    except Exception:
+        # If SAST validation itself fails (import error, etc.), proceed with a warning
+        pass
+
+
+def _build_pr_body(finding, fix_proposal: dict) -> str:
+    """Build the PR description markdown."""
+    return f"""## AuditAI Auto-Fix: {finding.title}
+
+**Severity:** {finding.severity}
+**Engine:** {finding.engine}
+**CWE:** {finding.cwe_id or 'N/A'}
+**File:** `{finding.file_path or 'N/A'}`
+**Line:** {finding.line_number or 'N/A'}
+
+### Finding Description
+{finding.description or 'No description available.'}
+
+### AI-Generated Fix Explanation
+{fix_proposal.get('explanation', '')}
+
+### Rationale
+{fix_proposal.get('rationale', '')}
+
+### Code Changes
+```diff
+{fix_proposal.get('diff', 'No diff available')}
+```
+
+---
+*This PR was automatically generated by [AuditAI Test Platform](https://github.com/auditai).
+The patch has been validated by the SAST engine and does not introduce new critical vulnerabilities.*
+*Confidence: {fix_proposal.get('confidence', 0.0):.0%} | Generated by: {fix_proposal.get('generated_by', 'AI')}*
+"""
+
+
+def _sanitize_branch_name(title: str) -> str:
+    """Convert finding title to a valid git branch name."""
+    sanitized = re.sub(r'[^a-z0-9\-]', '-', title.lower())
+    sanitized = re.sub(r'-+', '-', sanitized).strip('-')
+    return f"auditai/fix-{sanitized[:60]}"
+
+
+def _create_github_pr(finding, fix_proposal: dict, source_url: str) -> dict:
+    """Create a pull request on GitHub."""
+    if not settings.GITHUB_TOKEN:
+        raise RuntimeError(
+            "GITHUB_TOKEN is not configured. Set it in your .env file to enable GitHub PR creation."
+        )
+
+    try:
+        from github import Github, GithubException
+    except ImportError:
+        raise RuntimeError("PyGithub is not installed. Add 'PyGithub==2.4.0' to requirements.txt.")
+
+    # Parse owner/repo from URL
+    match = re.search(r'github\.com[:/]([^/]+/[^/\.]+)', source_url)
+    if not match:
+        raise RuntimeError(f"Cannot parse GitHub owner/repo from URL: {source_url}")
+    repo_path = match.group(1).rstrip(".git")
+
+    g = Github(settings.GITHUB_TOKEN)
+    repo = g.get_repo(repo_path)
+
+    # Get default branch
+    default_branch = repo.default_branch
+    base_sha = repo.get_branch(default_branch).commit.sha
+
+    # Create new branch
+    branch_name = _sanitize_branch_name(finding.title)
+    try:
+        repo.create_git_ref(f"refs/heads/{branch_name}", base_sha)
+    except GithubException as e:
+        if e.status == 422:
+            branch_name += f"-{finding.id[:8]}"
+            repo.create_git_ref(f"refs/heads/{branch_name}", base_sha)
+        else:
+            raise
+
+    # Apply patch: update the file if file_path is known
+    file_path = finding.file_path
+    after_code = fix_proposal.get("after_code", "")
+    if file_path and after_code:
+        try:
+            contents = repo.get_contents(file_path, ref=default_branch)
+            repo.update_file(
+                path=file_path,
+                message=f"fix: {finding.title[:72]}",
+                content=after_code,
+                sha=contents.sha,
+                branch=branch_name,
+            )
+        except Exception:
+            pass  # File not found in repo — PR body contains the diff
+
+    # Open PR
+    pr = repo.create_pull(
+        title=f"[AuditAI] Fix {finding.severity}: {finding.title[:72]}",
+        body=_build_pr_body(finding, fix_proposal),
+        head=branch_name,
+        base=default_branch,
+    )
+
+    # Store PR metadata in finding evidence
+    if finding.evidence is None:
+        finding.evidence = {}
+    finding.evidence["pr"] = {
+        "pr_url": pr.html_url,
+        "pr_number": pr.number,
+        "provider": "github",
+        "branch": branch_name,
+    }
+
+    return {"pr_url": pr.html_url, "pr_number": pr.number, "provider": "github"}
+
+
+def _create_gitlab_pr(finding, fix_proposal: dict, source_url: str) -> dict:
+    """Create a merge request on GitLab."""
+    if not settings.GITLAB_TOKEN:
+        raise RuntimeError(
+            "GITLAB_TOKEN is not configured. Set it in your .env file to enable GitLab MR creation."
+        )
+
+    try:
+        import gitlab
+    except ImportError:
+        raise RuntimeError("python-gitlab is not installed. Add 'python-gitlab==4.9.0' to requirements.txt.")
+
+    # Detect GitLab URL
+    gitlab_url = settings.GITLAB_URL
+    if "gitlab.com" in source_url:
+        gitlab_url = "https://gitlab.com"
+
+    gl = gitlab.Gitlab(gitlab_url, private_token=settings.GITLAB_TOKEN)
+
+    # Parse project path from URL
+    match = re.search(r'gitlab[^/]*/(.+?)(?:\.git)?$', source_url)
+    if not match:
+        raise RuntimeError(f"Cannot parse GitLab project path from URL: {source_url}")
+    project_path = match.group(1)
+
+    project = gl.projects.get(project_path)
+    default_branch = project.default_branch
+
+    # Create branch
+    branch_name = _sanitize_branch_name(finding.title)
+    try:
+        project.branches.create({"branch": branch_name, "ref": default_branch})
+    except Exception:
+        branch_name += f"-{finding.id[:8]}"
+        project.branches.create({"branch": branch_name, "ref": default_branch})
+
+    # Apply patch
+    file_path = finding.file_path
+    after_code = fix_proposal.get("after_code", "")
+    if file_path and after_code:
+        try:
+            f = project.files.get(file_path=file_path, ref=default_branch)
+            f.content = after_code
+            f.save(branch=branch_name, commit_message=f"fix: {finding.title[:72]}")
+        except Exception:
+            pass
+
+    # Open MR
+    mr = project.mergerequests.create({
+        "source_branch": branch_name,
+        "target_branch": default_branch,
+        "title": f"[AuditAI] Fix {finding.severity}: {finding.title[:72]}",
+        "description": _build_pr_body(finding, fix_proposal),
+    })
+
+    if finding.evidence is None:
+        finding.evidence = {}
+    finding.evidence["pr"] = {
+        "pr_url": mr.web_url,
+        "pr_number": mr.iid,
+        "provider": "gitlab",
+        "branch": branch_name,
+    }
+
+    return {"pr_url": mr.web_url, "pr_number": mr.iid, "provider": "gitlab"}

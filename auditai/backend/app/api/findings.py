@@ -104,6 +104,41 @@ def _generate_fix_async(finding_id: str):
         db.close()
 
 
+@router.post("/{finding_id}/create-pr")
+def create_pr(finding_id: str, db: Session = Depends(get_db),
+              current_user: User = Depends(get_current_user)):
+    """
+    Open a GitHub or GitLab pull request for an AI-generated fix proposal.
+    Requires GITHUB_TOKEN or GITLAB_TOKEN to be configured.
+    The patch is self-validated by the SAST engine before PR creation.
+    """
+    finding = db.query(Finding).join(Execution).filter(
+        Finding.id == finding_id, Execution.tenant_id == current_user.tenant_id
+    ).first()
+    if not finding:
+        raise HTTPException(status_code=404, detail="Finding not found")
+
+    fix_proposal = finding.fix_proposal
+    if not fix_proposal:
+        raise HTTPException(
+            status_code=422,
+            detail="No fix proposal found for this finding. Generate one first via POST /findings/{id}/fix."
+        )
+
+    try:
+        from app.services.pr_automation_service import create_pr_for_finding
+        result = create_pr_for_finding(finding, fix_proposal, db)
+        db.commit()
+        log_event(db, "finding.pr_created", user_id=current_user.id,
+                  tenant_id=current_user.tenant_id, resource_type="finding", resource_id=finding_id,
+                  payload={"pr_url": result.get("pr_url"), "provider": result.get("provider")})
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.get("/{finding_id}/fix-stream")
 async def fix_stream(finding_id: str, db: Session = Depends(get_db),
                      current_user: User = Depends(get_current_user)):

@@ -39,6 +39,16 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
     ]
 
+    # PR Automation (Enhancement 3)
+    GITHUB_TOKEN: str = ""
+    GITLAB_TOKEN: str = ""
+    GITLAB_URL: str = "https://gitlab.com"
+
+    # OpenTelemetry (Enhancement 4)
+    # Set to OTLP endpoint (e.g. http://jaeger:4317) to enable distributed tracing
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_SERVICE_NAME: str = "auditai-backend"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

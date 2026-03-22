@@ -12,6 +12,7 @@ import ReleasePage from './pages/ReleasePage'
 import PoliciesPage from './pages/PoliciesPage'
 import AuditPage from './pages/AuditPage'
 import AdminPage from './pages/AdminPage'
+import AIEvalsPage from './pages/AIEvalsPage'
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/policies" element={<PoliciesPage />} />
             <Route path="/audit" element={<AuditPage />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/ai-evals" element={<AIEvalsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

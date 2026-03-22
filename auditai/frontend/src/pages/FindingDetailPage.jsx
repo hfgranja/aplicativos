@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { getFinding, acceptRisk, resolveFinding } from '../api/findings'
 import StatusBadge from '../components/shared/StatusBadge'
 import FixProposalPanel from '../components/fix/FixProposalPanel'
+import PRProposalCard from '../components/fix/PRProposalCard'
 
 const s = {
   h1: { fontSize: 20, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 },
@@ -106,6 +107,11 @@ export default function FindingDetailPage() {
       )}
 
       <FixProposalPanel findingId={id} fixProposal={finding.fix_proposal} />
+      <PRProposalCard
+        findingId={id}
+        fixProposal={finding.fix_proposal}
+        evidencePr={finding.evidence?.pr}
+      />
     </div>
   )
 }

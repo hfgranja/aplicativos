@@ -5,6 +5,7 @@ import { listFindings } from '../api/findings'
 import StatusBadge from '../components/shared/StatusBadge'
 import ScoreGauge from '../components/shared/ScoreGauge'
 import PyramidCoverageChart from '../components/charts/PyramidCoverageChart'
+import TraceLink from '../components/execution/TraceLink'
 
 const s = {
   h1: { fontSize: 20, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 },
@@ -65,6 +66,7 @@ export default function ExecutionPage() {
                 <ScoreGauge score={run.score} size={60} />
                 <div style={s.engineName}>{run.engine}</div>
                 <StatusBadge status={run.status} small />
+                <TraceLink evidence={run.evidence} />
               </div>
             ))}
             {testRuns.length === 0 && execution.status === 'PENDING' && (

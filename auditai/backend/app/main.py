@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import create_tables, SessionLocal
 from app.api import auth, users, tenants, applications, executions, findings, policies, releases, reports, audit, corpus
+from app.core.telemetry import init_telemetry
+
+# Initialize OpenTelemetry before app creation so FastAPI instrumentation works
+init_telemetry()
 
 app = FastAPI(
     title=settings.APP_NAME,

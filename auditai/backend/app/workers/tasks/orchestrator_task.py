@@ -27,6 +27,9 @@ ENGINE_MAP = {
     "performance": ("engines.performance.engine", "PerformanceEngine"),
     "security": ("engines.security.engine", "SecurityEngine"),
     "chaos": ("engines.chaos.engine", "ChaosEngine"),
+    # PRD Review Enhancements
+    "ai_evals": ("engines.ai_evals.engine", "AIEvalsEngine"),
+    "ai_test_gen": ("engines.ai_test_gen.engine", "AITestGenEngine"),
 }
 
 
@@ -58,7 +61,22 @@ def run_execution(self, execution_id: str):
         completed_engines = []
         failed_engines = []
 
-        for engine_name in engines_to_run:
+        # OTel tracing — root span for the full execution
+        from app.core.telemetry import get_tracer, get_current_trace_id
+        tracer = get_tracer("auditai.orchestrator")
+
+        # If ai_test_gen is requested, run it first so it can inject corpus/properties
+        # into the shared context before other engines consume them
+        if "ai_test_gen" in engines_to_run:
+            engines_to_run_ordered = ["ai_test_gen"] + [e for e in engines_to_run if e != "ai_test_gen"]
+        else:
+            engines_to_run_ordered = list(engines_to_run)
+
+        # Shared generated context (ai_test_gen outputs → downstream engines)
+        generated_properties = []
+        generated_corpus_cases = []
+
+        for engine_name in engines_to_run_ordered:
             if engine_name not in ENGINE_MAP:
                 continue
             try:
@@ -73,6 +91,11 @@ def run_execution(self, execution_id: str):
                     application_id=execution.application_id,
                     tenant_id=execution.tenant_id,
                     stack=stack,
+                    # Inject outputs from ai_test_gen into downstream engines
+                    corpus_cases=list(generated_corpus_cases) if generated_corpus_cases else None,
+                    config={
+                        "generated_properties": generated_properties,
+                    },
                 )
 
                 test_run = TestRun(
@@ -85,7 +108,17 @@ def run_execution(self, execution_id: str):
                 db.add(test_run)
                 db.commit()
 
-                result = engine.run(context)
+                # OTel child span per engine
+                with tracer.start_as_current_span(f"auditai.engine.{engine_name}") as span:
+                    span.set_attribute("engine.name", engine_name)
+                    span.set_attribute("engine.pyramid_level", engine.pyramid_level)
+                    span.set_attribute("execution.id", execution_id)
+                    result = engine.run(context)
+                    span.set_attribute("engine.score", result.score)
+                    span.set_attribute("engine.findings_count", len(result.findings))
+                    trace_id = get_current_trace_id()
+                    if trace_id:
+                        result.evidence["trace_id"] = trace_id
 
                 test_run.status = result.status or "COMPLETED"
                 test_run.score = result.score
@@ -117,11 +150,19 @@ def run_execution(self, execution_id: str):
                     db.add(finding)
                 db.commit()
 
+                # Collect ai_test_gen outputs for downstream engines
+                if engine_name == "ai_test_gen":
+                    generated_properties = result.evidence.get("generated_properties", [])
+                    for cc in (context.corpus_cases or []):
+                        if cc not in generated_corpus_cases:
+                            generated_corpus_cases.append(cc)
+
                 completed_engines.append(engine_name)
                 pyramid_coverage[engine.pyramid_level] = {
                     "engine": engine_name,
                     "score": result.score,
                     "status": test_run.status,
+                    "trace_id": result.evidence.get("trace_id", ""),
                 }
 
             except Exception as e:
