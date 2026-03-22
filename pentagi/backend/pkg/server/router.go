@@ -589,6 +589,7 @@ func setPyramidGroup(parent *gin.RouterGroup, svc *services.PyramidService) {
 		plansGroup.GET("/:plan_id/runs", svc.GetTestRuns)
 		plansGroup.GET("/:plan_id/decisions", svc.GetReleaseDecisions)
 		plansGroup.POST("/:plan_id/evaluate", svc.EvaluateReleaseGate)
+		plansGroup.POST("/:plan_id/execute", svc.ExecuteTestPlan)
 	}
 
 	// Findings
@@ -597,6 +598,7 @@ func setPyramidGroup(parent *gin.RouterGroup, svc *services.PyramidService) {
 		findingsGroup.GET("/", svc.GetFindings)
 		findingsGroup.GET("/:finding_id", svc.GetFinding)
 		findingsGroup.PATCH("/:finding_id", svc.PatchFinding)
+		findingsGroup.POST("/:finding_id/generate-fix", svc.GenerateFixProposal)
 	}
 
 	// Release policies

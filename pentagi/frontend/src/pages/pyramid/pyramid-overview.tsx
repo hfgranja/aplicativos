@@ -78,28 +78,80 @@ const PyramidOverview = () => {
     const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
     const [summary, setSummary] = useState<PyramidSummary | null>(null);
     const [loading, setLoading] = useState(false);
+    const [executing, setExecuting] = useState(false);
+    const [showNewPlan, setShowNewPlan] = useState(false);
+    const [newPlanName, setNewPlanName] = useState('');
+    const [newPlanMode, setNewPlanMode] = useState('full');
+    const [newPlanEngines, setNewPlanEngines] = useState<string[]>([
+        'sast', 'contract', 'security', 'e2e', 'ai_evals',
+    ]);
 
-    useEffect(() => {
+    const fetchPlans = () =>
         fetch('/api/v1/pyramid/plans/')
             .then((r) => r.json())
             .then((d) => {
-                setPlans(d.data?.plans || []);
-                if (d.data?.plans?.length > 0) {
-                    setSelectedPlan(d.data.plans[0].id);
-                }
+                const p = d.data?.plans || [];
+                setPlans(p);
+                if (p.length > 0 && !selectedPlan) setSelectedPlan(p[0].id);
             })
             .catch(console.error);
-    }, []);
 
     useEffect(() => {
-        if (!selectedPlan) return;
+        fetchPlans();
+    }, []);
+
+    const fetchSummary = (planId: number) => {
         setLoading(true);
-        fetch(`/api/v1/pyramid/plans/${selectedPlan}/summary`)
+        fetch(`/api/v1/pyramid/plans/${planId}/summary`)
             .then((r) => r.json())
             .then((d) => setSummary(d.data))
             .catch(console.error)
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        if (!selectedPlan) return;
+        fetchSummary(selectedPlan);
     }, [selectedPlan]);
+
+    const handleExecute = async () => {
+        if (!selectedPlan) return;
+        setExecuting(true);
+        try {
+            await fetch(`/api/v1/pyramid/plans/${selectedPlan}/execute`, { method: 'POST' });
+            fetchSummary(selectedPlan);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setExecuting(false);
+        }
+    };
+
+    const handleCreatePlan = async () => {
+        if (!newPlanName.trim()) return;
+        try {
+            const r = await fetch('/api/v1/pyramid/plans/', {
+                body: JSON.stringify({ name: newPlanName, mode: newPlanMode, engines: newPlanEngines }),
+                headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+            });
+            const d = await r.json();
+            if (d.data?.id) {
+                setSelectedPlan(d.data.id);
+                setShowNewPlan(false);
+                setNewPlanName('');
+                fetchPlans();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const ALL_ENGINES = [
+        'sast', 'mutation', 'regression', 'property_based', 'fuzzing',
+        'integration', 'contract', 'differential', 'e2e', 'performance',
+        'security', 'chaos', 'ai_evals', 'ai_test_gen',
+    ];
 
     const getRunForEngine = (engine: string) =>
         summary?.engine_results?.find((r) => r.engine === engine);
@@ -147,10 +199,19 @@ const PyramidOverview = () => {
                             </select>
                         )}
                         <Button
-                            asChild
+                            disabled={!selectedPlan || executing}
+                            onClick={handleExecute}
                             size="sm"
+                            variant="default"
                         >
-                            <Link to="/pyramid/new">New Test Plan</Link>
+                            {executing ? 'Executing…' : '▶ Execute Plan'}
+                        </Button>
+                        <Button
+                            onClick={() => setShowNewPlan(true)}
+                            size="sm"
+                            variant="outline"
+                        >
+                            + New Plan
                         </Button>
                     </div>
                 </div>
@@ -244,13 +305,92 @@ const PyramidOverview = () => {
 
                 {/* Findings Link */}
                 {summary && summary.total_findings > 0 && (
-                    <div className="mt-6 text-center">
+                    <div className="mt-6 flex justify-center gap-3">
                         <Button
                             asChild
                             variant="outline"
                         >
                             <Link to="/findings">View All Findings ({summary.total_findings})</Link>
                         </Button>
+                        <Button
+                            asChild
+                            variant="outline"
+                        >
+                            <Link to="/release-gate">Release Gate</Link>
+                        </Button>
+                    </div>
+                )}
+
+                {/* New Plan Modal */}
+                {showNewPlan && (
+                    <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
+                        <div className="bg-card w-full max-w-md rounded-xl border p-6 shadow-xl">
+                            <h2 className="mb-4 text-lg font-bold">New Test Plan</h2>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium">Plan name</label>
+                                    <input
+                                        className="bg-background border-input w-full rounded-md border px-3 py-2 text-sm"
+                                        onChange={(e) => setNewPlanName(e.target.value)}
+                                        placeholder="e.g. Full Security Scan"
+                                        value={newPlanName}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium">Mode</label>
+                                    <select
+                                        className="bg-background border-input w-full rounded-md border px-3 py-2 text-sm"
+                                        onChange={(e) => setNewPlanMode(e.target.value)}
+                                        value={newPlanMode}
+                                    >
+                                        <option value="fast">Fast</option>
+                                        <option value="full">Full</option>
+                                        <option value="regulatory">Regulatory</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium">
+                                        Engines ({newPlanEngines.length} selected)
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {ALL_ENGINES.map((e) => (
+                                            <button
+                                                key={e}
+                                                className={`rounded border px-2 py-1 text-xs transition-colors ${
+                                                    newPlanEngines.includes(e)
+                                                        ? 'border-blue-500 bg-blue-500/20 text-blue-400'
+                                                        : 'border-gray-600 text-gray-400 hover:border-gray-400'
+                                                }`}
+                                                onClick={() =>
+                                                    setNewPlanEngines((prev) =>
+                                                        prev.includes(e)
+                                                            ? prev.filter((x) => x !== e)
+                                                            : [...prev, e],
+                                                    )
+                                                }
+                                                type="button"
+                                            >
+                                                {e}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-end gap-3">
+                                <Button
+                                    onClick={() => setShowNewPlan(false)}
+                                    variant="outline"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    disabled={!newPlanName.trim() || newPlanEngines.length === 0}
+                                    onClick={handleCreatePlan}
+                                >
+                                    Create Plan
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
