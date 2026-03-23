@@ -80,6 +80,29 @@ def generate_fix_proposal(finding: Finding) -> Optional[dict]:
         except Exception:
             pass
 
+    # Fallback to FixSynthesizer (CodeT5) when no LLM endpoint is available
+    try:
+        from engines.neural.models import ModelRegistry
+        synthesizer = ModelRegistry.get_instance().get_synthesizer()
+        code_context = _extract_code_context(finding)
+        result = synthesizer.synthesize(
+            code_context,
+            f"{finding.category or ''} {finding.title}",
+        )
+        if result.fixed_code:
+            return {
+                "explanation": f"{finding.category}: {finding.title}",
+                "before_code": code_context,
+                "after_code": result.fixed_code,
+                "diff": result.diff,
+                "rationale": result.explanation,
+                "confidence": round(result.confidence, 2),
+                "generated_by": f"FixSynthesizer/{result.method}",
+                "generated_at": datetime.utcnow().isoformat(),
+            }
+    except Exception:
+        pass
+
     return None
 
 

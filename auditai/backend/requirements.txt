@@ -33,6 +33,11 @@ numpy==1.26.4
 sentence-transformers==3.1.1
 transformers==4.45.1
 
+# Deep learning data sources (neural module)
+feedparser==6.0.11          # arXiv Atom/XML parsing
+datasets==2.21.0            # HuggingFace datasets (BigVul, SWE-bench)
+networkx==3.3               # dependency graph (chaos engine causal model)
+
 # LLM
 anthropic==0.35.0
 ollama==0.3.3

@@ -1,7 +1,7 @@
 """
 Security/Pentest Neural Assistant — CodeBERT + OWASP pattern scorer.
-Combines rule-based OWASP vulnerability detection with a fine-tuned transformer
-model to score exploit probability and suggest attack vectors.
+Integrates TechniqueRetriever from engines.neural for KB-backed technique
+matching, falling back to inline heuristics when ML stack is unavailable.
 """
 import re
 from engines.base import NeuralAssistant, FallbackNeuralAssistant
@@ -20,7 +20,6 @@ OWASP_BASELINE = {
     "A10_ssrf": 0.80,
 }
 
-# Severity mapping from OWASP category to CVSSv3 base
 OWASP_SEVERITY = {
     "A01_broken_access_control": "CRITICAL",
     "A02_cryptographic_failures": "HIGH",
@@ -34,80 +33,43 @@ OWASP_SEVERITY = {
     "A10_ssrf": "HIGH",
 }
 
-# Patterns that indicate a specific OWASP category
 OWASP_INDICATORS = {
     "A01_broken_access_control": [
-        r"idor",
-        r"insecure.*direct.*object",
-        r"missing.*authorization",
-        r"privilege.*escal",
-        r"path.*traversal",
+        r"idor", r"insecure.*direct.*object", r"missing.*authorization",
+        r"privilege.*escal", r"path.*traversal",
     ],
     "A02_cryptographic_failures": [
-        r"md5|sha1(?![\w-])",
-        r"weak.*cipher",
-        r"http://",
-        r"ssl.*verify.*false",
-        r"tls.*1\.[01]",
-        r"des\b|rc4\b",
+        r"md5|sha1(?![\w-])", r"weak.*cipher", r"http://",
+        r"ssl.*verify.*false", r"tls.*1\.[01]", r"des\b|rc4\b",
     ],
     "A03_injection": [
-        r"sql.*inject",
-        r"exec\s*\(",
-        r"eval\s*\(",
-        r"os\.system",
-        r"subprocess\.call",
-        r"ldap.*inject",
-        r"xpath.*inject",
-        r"nosql.*inject",
+        r"sql.*inject", r"exec\s*\(", r"eval\s*\(", r"os\.system",
+        r"subprocess\.call", r"ldap.*inject", r"xpath.*inject", r"nosql.*inject",
     ],
     "A04_insecure_design": [
-        r"no.*rate.*limit",
-        r"missing.*validation",
-        r"no.*sanitiz",
-        r"trust.*input",
+        r"no.*rate.*limit", r"missing.*validation", r"no.*sanitiz", r"trust.*input",
     ],
     "A05_security_misconfiguration": [
-        r"debug.*true",
-        r"default.*cred",
-        r"cors.*\*",
-        r"allow.*all.*origin",
-        r"expose.*stack.*trace",
-        r"verbose.*error",
+        r"debug.*true", r"default.*cred", r"cors.*\*",
+        r"allow.*all.*origin", r"expose.*stack.*trace", r"verbose.*error",
     ],
     "A06_vulnerable_components": [
-        r"outdated.*librar",
-        r"cve-\d{4}-\d+",
-        r"known.*vulnerab",
-        r"deprecated",
+        r"outdated.*librar", r"cve-\d{4}-\d+", r"known.*vulnerab", r"deprecated",
     ],
     "A07_identification_auth_failures": [
-        r"brute.*force",
-        r"no.*mfa",
-        r"weak.*password",
-        r"session.*fixat",
-        r"insecure.*token",
-        r"jwt.*none",
-        r"alg.*none",
+        r"brute.*force", r"no.*mfa", r"weak.*password",
+        r"session.*fixat", r"insecure.*token", r"jwt.*none", r"alg.*none",
     ],
     "A08_software_data_integrity": [
-        r"unsigned.*artifact",
-        r"no.*integrity.*check",
-        r"deserialization",
-        r"unsafe.*deserializ",
+        r"unsigned.*artifact", r"no.*integrity.*check",
+        r"deserialization", r"unsafe.*deserializ",
     ],
     "A09_security_logging_monitoring": [
-        r"missing.*log",
-        r"no.*audit",
-        r"silent.*fail",
-        r"swallow.*exception",
+        r"missing.*log", r"no.*audit", r"silent.*fail", r"swallow.*exception",
     ],
     "A10_ssrf": [
-        r"ssrf",
-        r"server.*side.*request",
-        r"internal.*url",
-        r"metadata.*endpoint",
-        r"169\.254\.169\.254",
+        r"ssrf", r"server.*side.*request", r"internal.*url",
+        r"metadata.*endpoint", r"169\.254\.169\.254",
     ],
 }
 
@@ -115,34 +77,30 @@ OWASP_INDICATORS = {
 class SecurityNeuralAssistant(NeuralAssistant):
     """
     Security scoring model combining:
-    1. OWASP Top 10 indicator matching (rule-based baseline)
-    2. CodeBERT transformer vulnerability classifier (when available)
-    3. Exploit chain analysis — detects multi-step attack paths
+    1. OWASP Top 10 indicator matching (rule-based baseline — always available)
+    2. DeepVulnClassifier (CodeBERT) for additional code-level vulnerability signal
+    3. TechniqueRetriever (Sentence-BERT) — KB-backed exploit technique matching
     """
 
     def __init__(self):
-        self._available = False
-        self._model = None
-        self._tokenizer = None
+        self._classifier = None
+        self._retriever = None
         self._exploit_chain_threshold = 0.6
+        self._load_models()
 
+    def _load_models(self):
         try:
-            from transformers import pipeline
-            # Use a code vulnerability detection pipeline if available
-            self._model = pipeline(
-                "text-classification",
-                model="microsoft/codebert-base",
-                device=-1,  # CPU
-            )
-            self._available = True
+            from engines.neural.models import ModelRegistry
+            registry = ModelRegistry.get_instance()
+            self._classifier = registry.get_classifier()
+            self._retriever = registry.get_retriever()
         except Exception:
             pass
 
+    def is_available(self) -> bool:
+        return True  # heuristic mode always works
+
     def _classify_owasp(self, text: str) -> dict:
-        """
-        Return OWASP category matches with confidence scores.
-        Combines indicator pattern matching with baseline scores.
-        """
         text_lower = text.lower()
         matches = {}
         for category, patterns in OWASP_INDICATORS.items():
@@ -152,40 +110,29 @@ class SecurityNeuralAssistant(NeuralAssistant):
                 matches[category] = confidence
         return matches
 
-    def _neural_score(self, code_snippet: str) -> float:
-        """Score code via CodeBERT; returns vulnerability probability."""
-        if not self._available or not self._model:
+    def _neural_code_score(self, code_snippet: str) -> float:
+        """Score code via DeepVulnClassifier; returns vulnerability probability."""
+        if self._classifier is None:
             return 0.5
         try:
-            result = self._model(code_snippet[:512])
-            if isinstance(result, list) and result:
-                r = result[0]
-                label = r.get("label", "").upper()
-                score = r.get("score", 0.5)
-                return score if "VULN" in label or "NEGATIVE" not in label else 1 - score
+            pred = self._classifier.predict(code_snippet[:2000])
+            return pred.confidence if pred.is_vulnerable else 1.0 - pred.confidence
         except Exception:
-            pass
-        return 0.5
+            return 0.5
 
     def score(self, context: dict) -> float:
-        """
-        Return aggregate exploit probability 0.0–1.0.
-        Takes the maximum of OWASP indicator match and optional neural score.
-        """
         finding_text = context.get("finding_text", "") or context.get("title", "")
         code_snippet = context.get("code_snippet", "")
         owasp_category = context.get("owasp_category", "")
 
-        # OWASP rule-based baseline
         if owasp_category and owasp_category in OWASP_BASELINE:
             owasp_score = OWASP_BASELINE[owasp_category]
         else:
             matches = self._classify_owasp(finding_text + " " + code_snippet)
             owasp_score = max(matches.values()) if matches else 0.3
 
-        # Neural model boost
-        if code_snippet and self._available:
-            neural = self._neural_score(code_snippet)
+        if code_snippet and self._classifier is not None:
+            neural = self._neural_code_score(code_snippet)
             return round(max(owasp_score, 0.6 * owasp_score + 0.4 * neural), 3)
 
         return round(owasp_score, 3)
@@ -197,7 +144,10 @@ class SecurityNeuralAssistant(NeuralAssistant):
 
         parts = []
         if owasp_category:
-            parts.append(f"OWASP {owasp_category.replace('_', ' ').upper()}: exploit probability {exploit_score:.0%}")
+            parts.append(
+                f"OWASP {owasp_category.replace('_', ' ').upper()}: "
+                f"exploit probability {exploit_score:.0%}"
+            )
         else:
             parts.append(f"Security vulnerability score: {exploit_score:.0%}")
 
@@ -211,8 +161,10 @@ class SecurityNeuralAssistant(NeuralAssistant):
         else:
             parts.append("moderate risk — schedule remediation")
 
-        if self._available:
-            parts.append("score reinforced by CodeBERT vulnerability classifier")
+        if self._classifier is not None:
+            parts.append("score reinforced by DeepVulnClassifier (CodeBERT)")
+        if self._retriever is not None:
+            parts.append("technique retrieval from vulnerability knowledge base enabled")
 
         return ". ".join(parts) + "."
 
@@ -224,5 +176,14 @@ class SecurityNeuralAssistant(NeuralAssistant):
         best = max(matches, key=matches.get)
         return (best, matches[best])
 
-    def is_available(self) -> bool:
-        return True  # heuristic mode always works
+    def retrieve_techniques(self, query: str, top_k: int = 3) -> list:
+        """
+        Return relevant attack/fix techniques from the knowledge base.
+        Falls back to keyword search when no embedder is loaded.
+        """
+        if self._retriever is None:
+            return []
+        try:
+            return self._retriever.retrieve(query, top_k=top_k)
+        except Exception:
+            return []

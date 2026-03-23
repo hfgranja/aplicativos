@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import create_tables, SessionLocal
-from app.api import auth, users, tenants, applications, executions, findings, policies, releases, reports, audit, corpus
+from app.api import auth, users, tenants, applications, executions, findings, policies, releases, reports, audit, corpus, neural
 from app.core.telemetry import init_telemetry
 
 # Initialize OpenTelemetry before app creation so FastAPI instrumentation works
@@ -34,6 +34,7 @@ app.include_router(releases.router)
 app.include_router(reports.router)
 app.include_router(audit.router)
 app.include_router(corpus.router)
+app.include_router(neural.router)
 
 
 @app.on_event("startup")
