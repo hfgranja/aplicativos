@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pec-shared"
+version = "0.1.0"
+description = "Shared utilities for PEC Observation microservices"
+requires-python = ">=3.11"
+dependencies = [
+    "redis>=5.0",
+    "sqlalchemy>=2.0",
+    "python-jose[cryptography]>=3.3",
+    "passlib[bcrypt]>=1.7",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pec_shared*"]
