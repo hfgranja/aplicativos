@@ -1,0 +1,301 @@
+version: "3.9"
+
+networks:
+  pec-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  ollama_data:
+
+services:
+
+  # ─── Infrastructure ──────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pec_secret}
+      POSTGRES_DB: pec_identity
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pec}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pec-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - pec-network
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pec-network
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    volumes:
+      - ./infra/minio/create-buckets.sh:/create-buckets.sh
+    entrypoint: /bin/sh /create-buckets.sh
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    networks:
+      - pec-network
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pec-network
+    profiles:
+      - llm
+
+  # ─── Microservices ────────────────────────────────────────────
+
+  ms-001-identity:
+    build:
+      context: ./services/ms-001-identity
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_identity
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-identity
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-002-school:
+    build:
+      context: ./services/ms-002-school
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_school
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-school
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-003-observation:
+    build:
+      context: ./services/ms-003-observation
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_observation
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-observation
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-004-audio-ingestion:
+    build:
+      context: ./services/ms-004-audio-ingestion
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_audio
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-audio-ingestion
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - pec-network
+
+  ms-005-transcription:
+    build:
+      context: ./services/ms-005-transcription
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_transcription
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-transcription
+    ports:
+      - "8005:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    networks:
+      - pec-network
+
+  ms-006-ai-feedback:
+    build:
+      context: ./services/ms-006-ai-feedback
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_ai_feedback
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-ai-feedback
+    ports:
+      - "8006:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-007-feedback:
+    build:
+      context: ./services/ms-007-feedback
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_feedback
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-feedback
+    ports:
+      - "8007:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-008-pdf-export:
+    build:
+      context: ./services/ms-008-pdf-export
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_pdf
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-pdf-export
+    ports:
+      - "8008:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - pec-network
+
+  ms-009-audit:
+    build:
+      context: ./services/ms-009-audit
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_audit
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-audit
+    ports:
+      - "8009:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-010-consent:
+    build:
+      context: ./services/ms-010-consent
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_consent
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_SERVICE_NAME: pec-consent
+    ports:
+      - "8010:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pec-network
