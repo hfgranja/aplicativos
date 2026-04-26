@@ -1,0 +1,7 @@
+Versão inicial do PEC Observação para Android.
+
+• Cadastro de escolas e professores
+• Observação pedagógica offline
+• Gravação de áudio da aula
+• Sincronização automática em segundo plano
+• Feedback por IA e exportação em PDF

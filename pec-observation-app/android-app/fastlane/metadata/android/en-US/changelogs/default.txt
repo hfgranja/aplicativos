@@ -1,0 +1,7 @@
+Initial release of PEC Observation for Android.
+
+• School and teacher management
+• Offline classroom observation recording
+• AI transcription and pedagogical feedback
+• Background sync
+• PDF export

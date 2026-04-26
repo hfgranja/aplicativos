@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PEC Observação</string>
+    <string name="tab_observations">Observações</string>
+    <string name="tab_schools">Escolas</string>
+    <string name="tab_sync">Sincronização</string>
+</resources>

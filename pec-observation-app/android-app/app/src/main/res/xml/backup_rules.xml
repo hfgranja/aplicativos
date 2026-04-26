@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude audio recordings from backup (LGPD) -->
+    <exclude domain="file" path="recordings/" />
+    <!-- Exclude encrypted prefs — they are device-bound -->
+    <exclude domain="sharedpref" path="pec_secure_prefs.xml" />
+</full-backup-content>

@@ -1,0 +1,88 @@
+default_platform(:android)
+
+PACKAGE = "br.gov.educacao.sp.pecobservation"
+
+platform :android do
+
+  desc "Run unit tests"
+  lane :test do
+    gradle(task: "test", build_type: "Debug")
+  end
+
+  desc "Build release AAB"
+  lane :build_release do
+    gradle(
+      task:            "bundle",
+      build_type:      "Release",
+      properties: {
+        "android.injected.signing.store.file"     => ENV["KEYSTORE_FILE"],
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias"      => ENV["KEY_ALIAS"],
+        "android.injected.signing.key.password"   => ENV["KEY_PASSWORD"],
+      },
+    )
+  end
+
+  desc "Upload to Play Store Internal Testing"
+  lane :internal do
+    build_release
+    upload_to_play_store(
+      track:               "internal",
+      aab:                 "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_apk:     true,
+      skip_upload_metadata: false,
+      skip_upload_images:  true,
+      skip_upload_screenshots: true,
+    )
+  end
+
+  desc "Promote internal → beta"
+  lane :beta do
+    upload_to_play_store(
+      track:        "internal",
+      track_promote_to: "beta",
+    )
+  end
+
+  desc "Promote beta → production"
+  lane :release do |options|
+    version = options[:version] || prompt(text: "Version name (e.g. 1.0.0): ")
+
+    # Bump versionName in build.gradle.kts
+    android_set_version_name(
+      version_name:   version,
+      gradle_file_path: "app/build.gradle.kts",
+    )
+    android_set_version_code(
+      version_code:   Time.now.strftime("%Y%m%d%H").to_i,
+      gradle_file_path: "app/build.gradle.kts",
+    )
+
+    internal  # rebuild + upload
+
+    upload_to_play_store(
+      track:            "internal",
+      track_promote_to: "production",
+      rollout:          "0.1",       # 10% staged rollout
+    )
+  end
+
+  desc "CI: bump build, test, upload to Internal Testing"
+  lane :ci_internal do
+    version_code = Time.now.strftime("%Y%m%d%H%M").to_i
+    android_set_version_code(
+      version_code:      version_code,
+      gradle_file_path:  "app/build.gradle.kts",
+    )
+    test
+    internal
+  end
+
+  error do |lane, exception|
+    slack(
+      message:   "❌ Android lane #{lane} falhou: #{exception.message}",
+      slack_url: ENV["SLACK_WEBHOOK"],
+      success:   false,
+    ) if ENV["SLACK_WEBHOOK"]
+  end
+end
