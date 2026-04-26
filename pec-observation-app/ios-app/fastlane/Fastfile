@@ -1,0 +1,122 @@
+default_platform(:ios)
+
+BUNDLE_ID = "br.gov.educacao.sp.pec-observation"
+SCHEME     = "PECObservation"
+XCODEPROJ  = "PECObservation.xcodeproj"
+
+platform :ios do
+
+  desc "Run unit tests (domain + use cases, no device needed)"
+  lane :test do
+    run_tests(
+      scheme:        SCHEME,
+      clean:         true,
+      destination:   "platform=iOS Simulator,name=iPhone 15,OS=latest",
+      output_files:  "fastlane/test_output/report.xml",
+    )
+  end
+
+  desc "Bump build number using timestamp"
+  lane :bump_build do
+    build = Time.now.strftime("%Y%m%d%H%M")
+    increment_build_number(
+      build_number: build,
+      xcodeproj:    XCODEPROJ,
+    )
+    build
+  end
+
+  desc "Sync code signing (readonly in CI)"
+  lane :sync_signing do
+    match(
+      type:       "appstore",
+      readonly:   ENV["CI"] ? true : false,
+    )
+  end
+
+  desc "Build release IPA"
+  lane :build_release do
+    sync_signing
+    gym(
+      scheme:                  SCHEME,
+      export_method:           "app-store",
+      output_directory:        "build",
+      output_name:             "PECObservation.ipa",
+      clean:                   true,
+      include_bitcode:         false,
+      export_options: {
+        uploadBitcode:          false,
+        uploadSymbols:          true,
+        compileBitcode:         false,
+        provisioningProfiles: {
+          BUNDLE_ID => "match AppStore #{BUNDLE_ID}",
+        },
+      },
+    )
+  end
+
+  desc "Upload to TestFlight for internal testing"
+  lane :beta do
+    bump_build
+    build_release
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      apple_id:   ENV["APPLE_APP_ID"],
+      ipa:        "build/PECObservation.ipa",
+    )
+    notify_slack_beta if ENV["SLACK_URL"]
+  end
+
+  desc "Submit to App Store review"
+  lane :release do |options|
+    version = options[:version] || prompt(text: "Version number (e.g. 1.0.0): ")
+    increment_version_number(
+      version_number: version,
+      xcodeproj:      XCODEPROJ,
+    )
+    beta  # build + TestFlight first
+    deliver(
+      submit_for_review:           true,
+      automatic_release:           false,
+      force:                       true,
+      reject_if_possible:          true,
+      skip_metadata:               false,
+      skip_screenshots:            false,
+      metadata_path:               "fastlane/metadata",
+      screenshots_path:            "fastlane/screenshots",
+      submission_information: {
+        add_id_info_uses_idfa:              false,
+        export_compliance_encryption_updated: false,
+        export_compliance_uses_encryption:  false,
+        content_rights_contains_third_party_content: false,
+      },
+    )
+  end
+
+  desc "Full CD: bump → build → TestFlight → tag git"
+  lane :ci_beta do
+    build_number = bump_build
+    beta
+    git_tag = "ios-beta-#{build_number}"
+    add_git_tag(tag: git_tag)
+    push_git_tags
+  end
+
+  # ── Helpers ────────────────────────────────────────────────────────────────
+
+  private_lane :notify_slack_beta do
+    slack(
+      message:    "Novo build PEC Observation no TestFlight 🎉",
+      slack_url:  ENV["SLACK_URL"],
+      success:    true,
+    )
+  end
+
+  error do |lane, exception|
+    slack(
+      message:    "Falha na lane #{lane}: #{exception.message}",
+      slack_url:  ENV["SLACK_URL"],
+      success:    false,
+    ) if ENV["SLACK_URL"]
+  end
+end

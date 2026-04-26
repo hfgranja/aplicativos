@@ -1,0 +1,234 @@
+steps:
+  # ── 1. Run backend unit tests ──────────────────────────────────────────────
+  - id: test-ms-001
+    name: python:3.11-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install -q -e services/ms-001-identity/../../shared \
+                       -r services/ms-001-identity/requirements.txt \
+                       pytest
+        cd services/ms-001-identity && pytest tests/ -v --tb=short
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: test-ms-003
+    name: python:3.11-slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install -q -e services/ms-003-observation/../../shared \
+                       -r services/ms-003-observation/requirements.txt \
+                       pytest
+        cd services/ms-003-observation && pytest tests/ -v --tb=short
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  # ── 2. Build Docker images (all 10 services in parallel) ──────────────────
+  - id: build-ms-001
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-001-identity:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-001-identity:latest
+      - -f
+      - services/ms-001-identity/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: [test-ms-001]
+
+  - id: build-ms-002
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-002-school:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-002-school:latest
+      - -f
+      - services/ms-002-school/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-003
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-003-observation:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-003-observation:latest
+      - -f
+      - services/ms-003-observation/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: [test-ms-003]
+
+  - id: build-ms-004
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-004-audio-ingestion:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-004-audio-ingestion:latest
+      - -f
+      - services/ms-004-audio-ingestion/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-005
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-005-transcription:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-005-transcription:latest
+      - -f
+      - services/ms-005-transcription/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-006
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-006-ai-feedback:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-006-ai-feedback:latest
+      - -f
+      - services/ms-006-ai-feedback/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-007
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-007-feedback:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-007-feedback:latest
+      - -f
+      - services/ms-007-feedback/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-008
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-008-pdf-export:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-008-pdf-export:latest
+      - -f
+      - services/ms-008-pdf-export/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-009
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-009-audit:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-009-audit:latest
+      - -f
+      - services/ms-009-audit/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  - id: build-ms-010
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/ms-010-consent:${SHORT_SHA}
+      - -t
+      - ${_REGISTRY}/ms-010-consent:latest
+      - -f
+      - services/ms-010-consent/Dockerfile
+      - .
+    dir: pec-observation-app
+    waitFor: ["-"]
+
+  # ── 3. Push all images ─────────────────────────────────────────────────────
+  - id: push-images
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for svc in ms-001-identity ms-002-school ms-003-observation \
+                   ms-004-audio-ingestion ms-005-transcription \
+                   ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
+                   ms-009-audit ms-010-consent; do
+          docker push ${_REGISTRY}/$${svc}:${SHORT_SHA}
+          docker push ${_REGISTRY}/$${svc}:latest
+        done
+    waitFor:
+      - build-ms-001
+      - build-ms-002
+      - build-ms-003
+      - build-ms-004
+      - build-ms-005
+      - build-ms-006
+      - build-ms-007
+      - build-ms-008
+      - build-ms-009
+      - build-ms-010
+
+  # ── 4. Deploy to Cloud Run ─────────────────────────────────────────────────
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        for svc in ms-001-identity ms-002-school ms-003-observation \
+                   ms-004-audio-ingestion ms-005-transcription \
+                   ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
+                   ms-009-audit ms-010-consent; do
+          gcloud run deploy ${_APP_NAME}-$${svc} \
+            --image=${_REGISTRY}/$${svc}:${SHORT_SHA} \
+            --region=${_REGION} \
+            --platform=managed \
+            --quiet
+        done
+    waitFor: [push-images]
+
+images:
+  - ${_REGISTRY}/ms-001-identity:${SHORT_SHA}
+  - ${_REGISTRY}/ms-002-school:${SHORT_SHA}
+  - ${_REGISTRY}/ms-003-observation:${SHORT_SHA}
+  - ${_REGISTRY}/ms-004-audio-ingestion:${SHORT_SHA}
+  - ${_REGISTRY}/ms-005-transcription:${SHORT_SHA}
+  - ${_REGISTRY}/ms-006-ai-feedback:${SHORT_SHA}
+  - ${_REGISTRY}/ms-007-feedback:${SHORT_SHA}
+  - ${_REGISTRY}/ms-008-pdf-export:${SHORT_SHA}
+  - ${_REGISTRY}/ms-009-audit:${SHORT_SHA}
+  - ${_REGISTRY}/ms-010-consent:${SHORT_SHA}
+
+substitutions:
+  _REGION: southamerica-east1
+  _APP_NAME: pec-obs
+  _REGISTRY: southamerica-east1-docker.pkg.dev/${PROJECT_ID}/pec-obs-images
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

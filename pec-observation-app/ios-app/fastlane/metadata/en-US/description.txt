@@ -1,0 +1,22 @@
+PEC Observation is the official app for Curriculum Specialist Teachers (PECs) in the São Paulo state school system to conduct structured classroom observations with AI support.
+
+KEY FEATURES
+
+• School and teacher registration
+• Lesson observation planning (subject, grade, theme)
+• Offline audio recording of classroom sessions
+• Automatic audio transcription using AI (Whisper)
+• AI-generated pedagogical feedback based on SEDUC-SP rubric
+• Human review and approval workflow
+• Action plan creation and PDF export
+• Full audit trail for LGPD compliance
+• Automatic background sync when connected
+
+WORKS OFFLINE
+All field operations — observations, planning, and recording — work without internet. Sync happens automatically in the background.
+
+PRIVACY & LGPD
+Audio files are automatically deleted after 7 days. No student-identifiable data is stored. Compliant with Brazil's General Data Protection Law (LGPD).
+
+WHO IS IT FOR?
+Exclusive to credentialed PECs in the São Paulo state school system. Requires an account provided by the São Paulo State Education Secretariat (SEDUC-SP).

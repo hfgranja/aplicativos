@@ -1,0 +1,74 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "pec-observation-app/services/**"
+      - "pec-observation-app/shared/**"
+      - "pec-observation-app/tests/**"
+
+jobs:
+  unit-tests:
+    name: Unit Tests — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - ms-001-identity
+          - ms-003-observation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install shared + service deps
+        run: |
+          pip install -e pec-observation-app/shared
+          pip install -r pec-observation-app/services/${{ matrix.service }}/requirements.txt pytest
+        working-directory: .
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --junitxml=test-report.xml
+        working-directory: pec-observation-app/services/${{ matrix.service }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report-${{ matrix.service }}
+          path: pec-observation-app/services/${{ matrix.service }}/test-report.xml
+
+  smoke-test:
+    name: Smoke Tests (docker compose)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start infra + core services
+        run: |
+          cp .env.example .env
+          docker compose up postgres redis minio ms-001-identity ms-002-school \
+                         ms-003-observation ms-004-audio-ingestion ms-009-audit \
+                         --wait --wait-timeout 120
+        working-directory: pec-observation-app
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run smoke tests
+        run: |
+          pip install -q httpx pytest
+          pytest smoke/ -v --tb=short
+        working-directory: pec-observation-app/tests
+
+      - name: Print service logs on failure
+        if: failure()
+        run: docker compose logs --tail=50
+        working-directory: pec-observation-app

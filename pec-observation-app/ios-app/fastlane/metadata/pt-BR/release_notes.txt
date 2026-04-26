@@ -1,0 +1,8 @@
+Versão inicial do PEC Observação.
+
+• Cadastro de escolas e professores
+• Observação pedagógica offline
+• Gravação de áudio da aula
+• Sincronização automática em segundo plano
+• Transcrição por IA e feedback pedagógico
+• Exportação em PDF

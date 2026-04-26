@@ -1,0 +1,112 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pec-ingress
+  namespace: pec-observation
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+spec:
+  tls:
+    - hosts:
+        - api.pec.seudominio.com.br
+      secretName: pec-tls
+  rules:
+    - host: api.pec.seudominio.com.br
+      http:
+        paths:
+          - path: /api/v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-001-identity
+                port:
+                  number: 8001
+          - path: /api/v1/schools
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-002-school
+                port:
+                  number: 8002
+          - path: /api/v1/teachers
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-002-school
+                port:
+                  number: 8002
+          - path: /api/v1/observations
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-003-observation
+                port:
+                  number: 8003
+          - path: /api/v1/audio
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-004-audio-ingestion
+                port:
+                  number: 8004
+          - path: /api/v1/transcriptions
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-005-transcription
+                port:
+                  number: 8005
+          - path: /api/v1/ai-feedback
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-006-ai-feedback
+                port:
+                  number: 8006
+          - path: /api/v1/feedback
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-007-feedback
+                port:
+                  number: 8007
+          - path: /api/v1/pdf
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-008-pdf-export
+                port:
+                  number: 8008
+          - path: /api/v1/audit
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-009-audit
+                port:
+                  number: 8009
+          - path: /api/v1/consent
+            pathType: Prefix
+            backend:
+              service:
+                name: ms-010-consent
+                port:
+                  number: 8010
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: seu-email@dominio.com.br
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

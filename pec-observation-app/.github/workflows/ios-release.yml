@@ -1,0 +1,115 @@
+name: iOS Build & Release
+
+on:
+  push:
+    tags:
+      - "ios-v*"          # e.g. ios-v1.0.0  →  App Store
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "Fastlane lane to run"
+        required: true
+        default: "beta"
+        type: choice
+        options:
+          - beta
+          - ci_beta
+          - test
+
+jobs:
+  test:
+    name: Swift Unit Tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.10"
+
+      - name: Run domain tests
+        run: swift test --filter PECObservationTests
+        working-directory: pec-observation-app/ios-app
+
+  build-and-upload:
+    name: Build IPA & Upload to TestFlight
+    runs-on: macos-14               # Xcode 15, Apple Silicon
+    needs: test
+    if: github.event_name == 'push' || github.event.inputs.lane != 'test'
+
+    env:
+      APPLE_ID:        ${{ secrets.APPLE_ID }}
+      ITC_TEAM_ID:     ${{ secrets.ITC_TEAM_ID }}
+      TEAM_ID:         ${{ secrets.TEAM_ID }}
+      APPLE_APP_ID:    ${{ secrets.APPLE_APP_ID }}
+      MATCH_GIT_URL:   ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD:  ${{ secrets.MATCH_PASSWORD }}
+      APP_STORE_CONNECT_API_KEY_ID:         ${{ secrets.ASC_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID:      ${{ secrets.ASC_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_CONTENT:    ${{ secrets.ASC_PRIVATE_KEY }}
+      SLACK_URL:       ${{ secrets.SLACK_WEBHOOK }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: pec-observation-app/ios-app
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Determine lane
+        id: lane
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "lane=ci_beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=${{ github.event.inputs.lane }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Fastlane lane
+        run: bundle exec fastlane ${{ steps.lane.outputs.lane }}
+        working-directory: pec-observation-app/ios-app
+
+      - name: Upload IPA as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PECObservation-${{ github.sha }}.ipa
+          path: pec-observation-app/ios-app/build/PECObservation.ipa
+          retention-days: 30
+
+  promote-to-appstore:
+    name: Promote TestFlight → App Store
+    runs-on: macos-14
+    needs: build-and-upload
+    if: startsWith(github.ref, 'refs/tags/ios-v')
+
+    env:
+      APPLE_ID:     ${{ secrets.APPLE_ID }}
+      ITC_TEAM_ID:  ${{ secrets.ITC_TEAM_ID }}
+      TEAM_ID:      ${{ secrets.TEAM_ID }}
+      APP_STORE_CONNECT_API_KEY_ID:       ${{ secrets.ASC_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID:    ${{ secrets.ASC_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_CONTENT:  ${{ secrets.ASC_PRIVATE_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+          working-directory: pec-observation-app/ios-app
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#ios-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Submit to App Store review
+        run: |
+          bundle exec fastlane release version:${{ steps.version.outputs.version }}
+        working-directory: pec-observation-app/ios-app

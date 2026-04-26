@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-008-pdf-export
+  namespace: pec-observation
+  labels:
+    app: ms-008-pdf-export
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ms-008-pdf-export
+  template:
+    metadata:
+      labels:
+        app: ms-008-pdf-export
+    spec:
+      containers:
+        - name: ms-008-pdf-export
+          image: REGISTRY_PLACEHOLDER/ms-008-pdf-export:latest
+          ports:
+            - containerPort: 8008
+          envFrom:
+            - configMapRef:
+                name: pec-common-config
+          env:
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://pec_pdf:$(DB_PASSWORD)@postgres/pec_pdf
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pec-secrets
+                  key: db-password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pec-secrets
+                  key: jwt-secret-key
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pec-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pec-secrets
+                  key: minio-secret-key
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-008-pdf-export
+  namespace: pec-observation
+spec:
+  selector:
+    app: ms-008-pdf-export
+  ports:
+    - port: 8008
+      targetPort: 8008

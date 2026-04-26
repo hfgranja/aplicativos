@@ -1,0 +1,6 @@
+git_url ENV["MATCH_GIT_URL"]
+storage_mode "git"
+type "appstore"
+app_identifier ["br.gov.educacao.sp.pec-observation"]
+username ENV["APPLE_ID"]
+readonly true  # CI uses readonly; devs run match with readonly false

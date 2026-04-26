@@ -1,0 +1,22 @@
+O PEC Observação é o aplicativo oficial para Professores Especialistas de Currículo (PECs) da rede estadual de São Paulo realizarem observações pedagógicas de forma estruturada, eficiente e com apoio de inteligência artificial.
+
+FUNCIONALIDADES PRINCIPAIS
+
+• Cadastro de escolas e professores observados
+• Registro de observações com planejamento de aula (disciplina, turma, tema)
+• Gravação de áudio da aula diretamente pelo aplicativo, com funcionamento offline
+• Transcrição automática do áudio usando IA (Whisper)
+• Feedback pedagógico gerado por IA baseado na rubrica SEDUC-SP
+• Revisão humana e aprovação do feedback pelo PEC
+• Geração de plano de ação e exportação em PDF
+• Trilha de auditoria completa para conformidade com LGPD
+• Sincronização automática em segundo plano quando há conexão
+
+FUNCIONA OFFLINE
+Todas as operações de campo — observação, planejamento e gravação — funcionam sem internet. A sincronização ocorre automaticamente em segundo plano.
+
+PRIVACIDADE E LGPD
+Os áudios são excluídos automaticamente após 7 dias. Nenhum dado de alunos identificável é armazenado. Conform with Lei Geral de Proteção de Dados (LGPD).
+
+PARA QUEM É
+Exclusivo para PECs credenciados na rede estadual de São Paulo. Requer conta fornecida pela Secretaria de Educação do Estado de São Paulo (SEDUC-SP).

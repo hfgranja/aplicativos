@@ -1,0 +1,35 @@
+# Terraform
+infra/gcp/terraform/.terraform/
+infra/gcp/terraform/terraform.tfvars
+infra/gcp/terraform/*.tfstate
+infra/gcp/terraform/*.tfstate.backup
+infra/gcp/terraform/.terraform.lock.hcl
+
+# Secrets
+.env
+**/*.p8
+**/Certificates.p12
+**/fastlane/report.xml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+dist/
+*.egg-info/
+
+# iOS / Xcode
+ios-app/build/
+ios-app/*.ipa
+ios-app/DerivedData/
+ios-app/.build/
+ios-app/*.xcworkspace/xcuserdata/
+ios-app/*.xcodeproj/xcuserdata/
+ios-app/fastlane/test_output/
+
+# macOS
+.DS_Store
+
+# Docker
+*.log

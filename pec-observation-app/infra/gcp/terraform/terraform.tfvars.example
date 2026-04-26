@@ -1,0 +1,34 @@
+# Copy to terraform.tfvars and fill in real values
+# Never commit terraform.tfvars to git
+
+project_id   = "YOUR_GCP_PROJECT_ID"
+region       = "southamerica-east1"
+environment  = "production"
+app_name     = "pec-obs"
+
+# Database
+db_tier      = "db-g1-small"         # db-custom-2-7680 for production load
+db_password  = "STRONG_PASSWORD_HERE"
+
+# JWT — generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+jwt_secret_key = "GENERATE_AND_PASTE_64_CHAR_HEX_HERE"
+
+# Audio retention (LGPD)
+audio_retention_days = 7
+
+# Whisper + LLM
+whisper_model_size = "small"
+ollama_model       = "llama3.2"
+
+# Cloud Run scaling
+cloud_run_min_instances = 0
+cloud_run_max_instances = 10
+cloud_run_cpu           = "1"
+cloud_run_memory        = "512Mi"
+
+# Alerts
+alert_email = "your-team@example.com"
+
+# db_service_passwords: leave empty to use db_password for all services
+# or set per-service passwords for stricter isolation
+db_service_passwords = {}

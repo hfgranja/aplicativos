@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pec-common-config
+  namespace: pec-observation
+data:
+  ENVIRONMENT: "production"
+  REDIS_URL: "redis://redis:6379/0"
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_SECURE: "false"
+  AUDIO_BUCKET: "audio-uploads"
+  PDF_BUCKET: "pdf-exports"
+  AUDIO_RETENTION_DAYS: "7"
+  WHISPER_MODEL_SIZE: "small"
+  OLLAMA_HOST: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3.2"
+  OTEL_EXPORTER_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"

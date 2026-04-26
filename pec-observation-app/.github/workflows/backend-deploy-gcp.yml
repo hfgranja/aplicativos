@@ -1,0 +1,126 @@
+name: Backend Deploy — Google Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pec-observation-app/services/**"
+      - "pec-observation-app/shared/**"
+
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Deploy single service (leave empty for all)"
+        required: false
+        default: ""
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: southamerica-east1
+  APP_NAME: pec-obs
+  REGISTRY: southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/pec-obs-images
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: set-matrix
+        run: |
+          if [[ -n "${{ github.event.inputs.service }}" ]]; then
+            SVCS='["${{ github.event.inputs.service }}"]'
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD -- pec-observation-app/services/ \
+              | sed 's|pec-observation-app/services/||' \
+              | cut -d/ -f1 | sort -u | jq -R . | jq -sc .)
+            # If shared changed, rebuild everything
+            SHARED=$(git diff --name-only HEAD~1 HEAD -- pec-observation-app/shared/ | wc -l)
+            if [[ "$SHARED" -gt 0 ]]; then
+              SVCS='["ms-001-identity","ms-002-school","ms-003-observation","ms-004-audio-ingestion","ms-005-transcription","ms-006-ai-feedback","ms-007-feedback","ms-008-pdf-export","ms-009-audit","ms-010-consent"]'
+            else
+              SVCS="$CHANGED"
+            fi
+          fi
+          echo "matrix={\"service\":$SVCS}" >> "$GITHUB_OUTPUT"
+
+  build-and-deploy:
+    name: Deploy ${{ matrix.service }}
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.matrix != '{"service":[]}'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ matrix.service }}"
+          docker build \
+            -t "${IMAGE}:${{ github.sha }}" \
+            -t "${IMAGE}:latest" \
+            -f "services/${{ matrix.service }}/Dockerfile" \
+            --cache-from "${IMAGE}:latest" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            .
+          docker push "${IMAGE}:${{ github.sha }}"
+          docker push "${IMAGE}:latest"
+        working-directory: pec-observation-app
+        env:
+          DOCKER_BUILDKIT: "1"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "${{ env.APP_NAME }}-${{ matrix.service }}" \
+            --image="${{ env.REGISTRY }}/${{ matrix.service }}:${{ github.sha }}" \
+            --region="${{ env.REGION }}" \
+            --platform=managed \
+            --quiet
+
+      - name: Verify deployment
+        run: |
+          URL=$(gcloud run services describe \
+            "${{ env.APP_NAME }}-${{ matrix.service }}" \
+            --region="${{ env.REGION }}" \
+            --format="value(status.url)")
+          echo "Service URL: $URL"
+          curl -sf "${URL}/health" || (echo "Health check failed" && exit 1)
+
+  notify:
+    name: Notify deployment
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack notification
+        if: env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        run: |
+          STATUS="${{ needs.build-and-deploy.result }}"
+          EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
+          curl -s -X POST "$SLACK_WEBHOOK" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"$EMOJI Backend deploy $STATUS — commit ${{ github.sha }}\"}"
