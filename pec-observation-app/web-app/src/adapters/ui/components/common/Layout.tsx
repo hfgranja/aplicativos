@@ -3,10 +3,11 @@ import { type ReactNode } from 'react'
 import { useAuth } from '../../viewModels/useAuth'
 
 const NAV_ITEMS = [
-  { to: '/observacoes', label: 'Observações', icon: '📋' },
-  { to: '/escolas',     label: 'Escolas',     icon: '🏫' },
-  { to: '/biblioteca',  label: 'Biblioteca',  icon: '📚' },
-  { to: '/sincronizar', label: 'Sincronizar', icon: '🔄' },
+  { to: '/observacoes',   label: 'Observações',  icon: '📋' },
+  { to: '/escolas',       label: 'Escolas',      icon: '🏫' },
+  { to: '/biblioteca',    label: 'Biblioteca',   icon: '📚' },
+  { to: '/boas-praticas', label: 'Boas Práticas', icon: '⭐' },
+  { to: '/sincronizar',   label: 'Sincronizar',  icon: '🔄' },
 ]
 
 interface Props { children: ReactNode; title?: string }

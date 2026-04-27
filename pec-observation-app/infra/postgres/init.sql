@@ -12,3 +12,4 @@ CREATE DATABASE pec_pdf;
 CREATE DATABASE pec_audit;
 CREATE DATABASE pec_consent;
 CREATE DATABASE pec_knowledge;
+CREATE DATABASE pec_best_practices;

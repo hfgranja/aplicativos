@@ -14,7 +14,9 @@ done
 
 $MC mb --ignore-existing $MINIO_ALIAS/audio-uploads
 $MC mb --ignore-existing $MINIO_ALIAS/pdf-exports
+$MC mb --ignore-existing $MINIO_ALIAS/best-practices
 
 $MC anonymous set download $MINIO_ALIAS/pdf-exports
+# best-practices clips are served via presigned URLs — no public access
 
 echo "MinIO buckets ready."

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -20,22 +21,30 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import br.gov.educacao.sp.pecobservation.adapters.ui.screens.bestpractices.BestPracticesScreen
 import br.gov.educacao.sp.pecobservation.adapters.ui.screens.knowledge.KnowledgeScreen
 import br.gov.educacao.sp.pecobservation.adapters.ui.screens.observations.ObservationListScreen
 import br.gov.educacao.sp.pecobservation.adapters.ui.screens.schools.SchoolListScreen
 import br.gov.educacao.sp.pecobservation.adapters.ui.screens.sync.SyncStatusScreen
 
 private sealed class NavRoute(val route: String, val label: String) {
-    object Observations : NavRoute("observations", "Observações")
-    object Schools      : NavRoute("schools",      "Escolas")
-    object Knowledge    : NavRoute("knowledge",    "Conhecimento")
-    object Sync         : NavRoute("sync",         "Sincronização")
+    object Observations   : NavRoute("observations",    "Observações")
+    object Schools        : NavRoute("schools",         "Escolas")
+    object Knowledge      : NavRoute("knowledge",       "Conhecimento")
+    object BestPractices  : NavRoute("best-practices",  "Boas Práticas")
+    object Sync           : NavRoute("sync",            "Sincronizar")
 }
 
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    val tabs = listOf(NavRoute.Observations, NavRoute.Schools, NavRoute.Knowledge, NavRoute.Sync)
+    val tabs = listOf(
+        NavRoute.Observations,
+        NavRoute.Schools,
+        NavRoute.Knowledge,
+        NavRoute.BestPractices,
+        NavRoute.Sync,
+    )
 
     Scaffold(
         bottomBar = {
@@ -55,15 +64,16 @@ fun MainScreen() {
                         icon = {
                             Icon(
                                 imageVector = when (tab) {
-                                    NavRoute.Observations -> Icons.Default.List
-                                    NavRoute.Schools      -> Icons.Default.School
-                                    NavRoute.Knowledge    -> Icons.Default.MenuBook
-                                    NavRoute.Sync         -> Icons.Default.CloudSync
+                                    NavRoute.Observations  -> Icons.Default.List
+                                    NavRoute.Schools       -> Icons.Default.School
+                                    NavRoute.Knowledge     -> Icons.Default.MenuBook
+                                    NavRoute.BestPractices -> Icons.Default.Star
+                                    NavRoute.Sync          -> Icons.Default.CloudSync
                                 },
                                 contentDescription = tab.label,
                             )
                         },
-                        label = { Text(tab.label) },
+                        label = { Text(tab.label, maxLines = 1) },
                     )
                 }
             }
@@ -74,10 +84,11 @@ fun MainScreen() {
             startDestination = NavRoute.Observations.route,
             modifier         = Modifier.padding(innerPadding),
         ) {
-            composable(NavRoute.Observations.route) { ObservationListScreen(navController) }
-            composable(NavRoute.Schools.route)      { SchoolListScreen() }
-            composable(NavRoute.Knowledge.route)    { KnowledgeScreen() }
-            composable(NavRoute.Sync.route)         { SyncStatusScreen() }
+            composable(NavRoute.Observations.route)  { ObservationListScreen(navController) }
+            composable(NavRoute.Schools.route)       { SchoolListScreen() }
+            composable(NavRoute.Knowledge.route)     { KnowledgeScreen() }
+            composable(NavRoute.BestPractices.route) { BestPracticesScreen() }
+            composable(NavRoute.Sync.route)          { SyncStatusScreen() }
         }
     }
 }
