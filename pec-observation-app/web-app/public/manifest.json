@@ -1,0 +1,15 @@
+{
+  "name": "PEC Observation — SEDUC-SP",
+  "short_name": "PEC Obs",
+  "description": "Sistema de Observação Pedagógica para PECs da Secretaria da Educação do Estado de São Paulo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#003087",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable any" }
+  ],
+  "categories": ["education", "productivity"]
+}

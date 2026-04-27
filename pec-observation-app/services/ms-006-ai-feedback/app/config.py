@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama3.2"
     ANTHROPIC_API_KEY: str = ""
     LLM_PROVIDER: str = "ollama"  # ollama | anthropic
+    KNOWLEDGE_BASE_URL: str = "http://ms-011-knowledge:8011"
+    KNOWLEDGE_MAX_CHUNKS: int = 5
     OTEL_SERVICE_NAME: str = "pec-ai-feedback"
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     OTEL_EXPORTER_ENABLED: str = "false"

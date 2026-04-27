@@ -87,12 +87,23 @@ def _process_transcription_completed(payload: dict, r) -> None:
             "segment_count": payload.get("segment_count", 0),
         }
 
-        from ...adapters.llm.ollama_adapter import generate_feedback
+        from ...adapters.llm.ollama_adapter import generate_feedback, fetch_knowledge_context
+        knowledge = fetch_knowledge_context(
+            knowledge_base_url=settings.KNOWLEDGE_BASE_URL,
+            subject=payload.get("subject", ""),
+            grade=payload.get("grade", ""),
+            style_id=payload.get("feedback_style_id"),
+            max_chunks=settings.KNOWLEDGE_MAX_CHUNKS,
+        )
+        active_style = knowledge.get("active_style") or {}
         result = generate_feedback(
             transcription_text=transcription_text,
             observation_context=observation_context,
             base_url=settings.OLLAMA_BASE_URL,
             model=settings.OLLAMA_MODEL,
+            knowledge_chunks=knowledge.get("chunks", []),
+            style_prompt=active_style.get("template_prompt"),
+            document_titles=knowledge.get("document_titles", []),
         )
         _validate_ai_response(result)
 

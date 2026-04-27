@@ -3,6 +3,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from pec_shared.text_optimizer import optimize, optimization_report
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,6 +24,8 @@ class TranscriptionResult:
     duration_seconds: float
     model_used: str
     average_confidence: Optional[float] = None
+    optimized_text: Optional[str] = None
+    token_report: Optional[dict] = None
 
 
 _model = None
@@ -44,6 +48,7 @@ def transcribe(
     compute_type: str = "int8",
     language: str = "pt",
     beam_size: int = 5,
+    max_tokens: int = 3500,
 ) -> TranscriptionResult:
     model = _get_model(model_size, device, compute_type)
     segments_raw, info = model.transcribe(
@@ -57,10 +62,22 @@ def transcribe(
         ))
         full_text_parts.append(seg.text.strip())
 
+    raw_text = " ".join(full_text_parts)
+    optimized = optimize(raw_text, max_tokens=max_tokens)
+    report = optimization_report(raw_text, optimized)
+    logger.info(
+        "Text optimization: %d → %d estimated tokens (%.1f%% reduction)",
+        report["estimated_tokens_before"],
+        report["estimated_tokens_after"],
+        report["reduction_pct"],
+    )
+
     return TranscriptionResult(
-        text=" ".join(full_text_parts),
+        text=raw_text,
         segments=segments,
         language=info.language,
         duration_seconds=info.duration if hasattr(info, "duration") else 0.0,
         model_used=f"whisper-{model_size}",
+        optimized_text=optimized,
+        token_report=report,
     )

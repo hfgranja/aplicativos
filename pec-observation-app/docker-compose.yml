@@ -299,3 +299,48 @@ services:
         condition: service_healthy
     networks:
       - pec-network
+
+  ms-011-knowledge:
+    build:
+      context: ./services/ms-011-knowledge
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_knowledge
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production-min-32-chars}
+      OTEL_SERVICE_NAME: pec-knowledge
+    ports:
+      - "8011:8011"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8011/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  # ─── Web App ─────────────────────────────────────────────────
+
+  web-app:
+    build:
+      context: ./web-app
+      dockerfile: Dockerfile
+      args:
+        VITE_IDENTITY_URL:    http://localhost:8001
+        VITE_SCHOOL_URL:      http://localhost:8002
+        VITE_OBSERVATION_URL: http://localhost:8003
+        VITE_AUDIO_URL:       http://localhost:8004
+        VITE_FEEDBACK_URL:    http://localhost:8007
+        VITE_KNOWLEDGE_URL:   http://localhost:8011
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health 2>/dev/null || curl -sf http://localhost/ || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pec-network
