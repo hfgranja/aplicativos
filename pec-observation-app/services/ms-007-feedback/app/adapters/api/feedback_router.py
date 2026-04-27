@@ -157,6 +157,9 @@ def approve_feedback(feedback_id: str, db: Session = Depends(get_db), user=Depen
     # Notify MS-013 Learning Engine: store as approved training example
     _notify_learning_engine(fb)
 
+    # Notify MS-014 Evaluator: score AI draft vs. human-approved version
+    _notify_evaluator(fb)
+
     return fb
 
 
@@ -183,6 +186,39 @@ def _notify_learning_engine(fb) -> None:
         )
     except Exception as exc:
         logger.warning("Could not notify learning engine: %s", exc)
+
+
+def _notify_evaluator(fb) -> None:
+    evaluator_url = settings.EVALUATOR_SERVICE_URL
+    if not evaluator_url:
+        return
+    human_feedback = {
+        "summary": fb.summary or "",
+        "strengths": fb.strengths or [],
+        "improvement_points": fb.improvement_points or [],
+        "evidence": fb.evidence or [],
+        "suggested_action_plan": fb.suggested_action_plan or [],
+        "risks_and_uncertainties": fb.risks_and_uncertainties or [],
+    }
+    # The AI draft is stored in the first FeedbackVersion (version_number=1) snapshot
+    ai_draft = {}
+    if hasattr(fb, "versions") and fb.versions:
+        v1 = min(fb.versions, key=lambda v: v.version_number)
+        ai_draft = v1.snapshot or {}
+    try:
+        httpx.post(
+            f"{evaluator_url}/api/v1/evaluator/evaluate",
+            json={
+                "feedback_id":       str(fb.id),
+                "observation_id":    str(fb.observation_id),
+                "ai_feedback":       ai_draft or human_feedback,
+                "human_feedback":    human_feedback,
+                "transcription_text": fb.transcription_text or "",
+            },
+            timeout=8.0,
+        )
+    except Exception as exc:
+        logger.warning("Could not notify evaluator: %s", exc)
 
 
 @router.get("/{feedback_id}/versions")

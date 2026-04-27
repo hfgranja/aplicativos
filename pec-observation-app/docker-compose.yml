@@ -251,6 +251,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_feedback
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      LEARNING_SERVICE_URL: http://ms-013-learning:8000
+      EVALUATOR_SERVICE_URL: http://ms-014-evaluator:8000
       OTEL_SERVICE_NAME: pec-feedback
     ports:
       - "8007:8000"
@@ -390,6 +392,38 @@ services:
       OTEL_SERVICE_NAME: pec-learning
     ports:
       - "8013:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-014-evaluator:
+    build:
+      context: .
+      dockerfile: services/ms-014-evaluator/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_evaluator
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      LEARNING_SERVICE_URL: http://ms-013-learning:8000
+      QUALITY_ALERT_THRESHOLD: ${QUALITY_ALERT_THRESHOLD:-0.60}
+      REBUILD_THRESHOLD: ${REBUILD_THRESHOLD:-5}
+      OTEL_SERVICE_NAME: pec-evaluator
+    ports:
+      - "8014:8000"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 15s

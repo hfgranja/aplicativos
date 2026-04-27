@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, DateTime, Index, String, Text
+from sqlalchemy import Column, DateTime, Float, Index, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from pec_shared.models_base import Base
@@ -18,6 +18,10 @@ class EmbeddingRecord(Base):
     content = Column(Text, nullable=False)
     embedding = Column(Vector(768), nullable=True)
     metadata_ = Column("metadata", JSONB, default=dict)
+    # Quality score from MS-014 Evaluator (0.0–1.0); None = not yet evaluated
+    quality_score    = Column(Float, nullable=True)
+    # Combined weight for Modelfile selection (quality × recency)
+    selection_weight = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))

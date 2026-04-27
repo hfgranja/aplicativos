@@ -122,3 +122,38 @@ def model_status(db: Session = Depends(get_db)):
             "built_at": last.built_at.isoformat() if last and last.built_at else None,
         },
     }
+
+
+# ── Weight update (called by MS-014 Evaluator) ────────────────────────────────
+
+class WeightUpdateRequest(BaseModel):
+    quality_score: float
+    selection_weight: float
+
+
+@router.patch("/examples/{feedback_id}/weight", status_code=200)
+def update_example_weight(
+    feedback_id: str,
+    req: WeightUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    from app.models.embedding import EmbeddingRecord
+    rec = (
+        db.query(EmbeddingRecord)
+        .filter_by(source_type="approved_feedback", source_id=feedback_id)
+        .first()
+    )
+    if not rec:
+        # Also check synthetic examples prefixed with "synthetic:"
+        rec = (
+            db.query(EmbeddingRecord)
+            .filter(EmbeddingRecord.source_id.like(f"%{feedback_id}%"))
+            .first()
+        )
+    if not rec:
+        return {"status": "not_found", "feedback_id": feedback_id}
+    rec.quality_score    = req.quality_score
+    rec.selection_weight = req.selection_weight
+    db.commit()
+    return {"status": "updated", "feedback_id": feedback_id,
+            "quality_score": req.quality_score, "selection_weight": req.selection_weight}

@@ -76,10 +76,16 @@ def rebuild_model(
     db.commit()
 
     try:
+        # Primary sort: selection_weight DESC (quality × recency, set by MS-014)
+        # Fallback: created_at DESC for examples not yet evaluated
+        from sqlalchemy import case, desc, nullslast
         examples = (
             db.query(EmbeddingRecord)
             .filter_by(source_type="approved_feedback")
-            .order_by(EmbeddingRecord.created_at.desc())
+            .order_by(
+                nullslast(desc(EmbeddingRecord.selection_weight)),
+                desc(EmbeddingRecord.created_at),
+            )
             .limit(max_examples)
             .all()
         )

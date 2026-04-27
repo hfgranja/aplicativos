@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production-min-32-chars"
     ALGORITHM: str = "HS256"
     LEARNING_SERVICE_URL: str = "http://ms-013-learning:8000"
+    EVALUATOR_SERVICE_URL: str = "http://ms-014-evaluator:8000"
     OTEL_SERVICE_NAME: str = "pec-feedback"
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     OTEL_EXPORTER_ENABLED: str = "false"
