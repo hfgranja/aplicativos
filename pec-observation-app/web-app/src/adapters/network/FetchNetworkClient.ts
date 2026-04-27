@@ -38,15 +38,20 @@ async function handleResponse<T>(res: Response): Promise<T> {
 export class FetchNetworkClient implements NetworkClientPort {
   constructor(private readonly baseUrl: string) {}
 
+  private _url(path: string): URL {
+    const base = this.baseUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+    return new URL(path, base)
+  }
+
   async get<T>(path: string, params?: Record<string, string>): Promise<T> {
-    const url = new URL(path, this.baseUrl)
+    const url = this._url(path)
     if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
     const res = await fetch(url.toString(), { headers: { ...authHeaders() } })
     return handleResponse<T>(res)
   }
 
   async post<T>(path: string, body: unknown): Promise<T> {
-    const res = await fetch(new URL(path, this.baseUrl).toString(), {
+    const res = await fetch(this._url(path).toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
@@ -55,7 +60,7 @@ export class FetchNetworkClient implements NetworkClientPort {
   }
 
   async put<T>(path: string, body: unknown): Promise<T> {
-    const res = await fetch(new URL(path, this.baseUrl).toString(), {
+    const res = await fetch(this._url(path).toString(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
@@ -64,7 +69,7 @@ export class FetchNetworkClient implements NetworkClientPort {
   }
 
   async patch<T>(path: string, body: unknown): Promise<T> {
-    const res = await fetch(new URL(path, this.baseUrl).toString(), {
+    const res = await fetch(this._url(path).toString(), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
@@ -73,7 +78,7 @@ export class FetchNetworkClient implements NetworkClientPort {
   }
 
   async delete(path: string): Promise<void> {
-    const res = await fetch(new URL(path, this.baseUrl).toString(), {
+    const res = await fetch(this._url(path).toString(), {
       method: 'DELETE',
       headers: { ...authHeaders() },
     })
@@ -84,7 +89,7 @@ export class FetchNetworkClient implements NetworkClientPort {
     const form = new FormData()
     if (fields) Object.entries(fields).forEach(([k, v]) => form.append(k, v))
     form.append('file', file)
-    const res = await fetch(new URL(path, this.baseUrl).toString(), {
+    const res = await fetch(this._url(path).toString(), {
       method: 'POST',
       headers: { ...authHeaders() },
       body: form,

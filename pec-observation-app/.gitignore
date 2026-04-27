@@ -33,3 +33,5 @@ ios-app/fastlane/test_output/
 
 # Docker
 *.log
+.env.production
+backups/
