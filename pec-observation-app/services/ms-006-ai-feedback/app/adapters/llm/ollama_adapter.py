@@ -149,3 +149,31 @@ def fetch_knowledge_context(
     except Exception as exc:
         logger.warning("Could not fetch knowledge context: %s", exc)
         return {"chunks": [], "document_titles": [], "active_style": None}
+
+
+def fetch_semantic_context(
+    learning_service_url: str,
+    transcription_text: str,
+    limit: int = 6,
+) -> list[dict]:
+    """Query MS-013 Learning Engine for semantically similar knowledge + approved examples.
+
+    Returns list of chunk dicts with keys: source_type, source_id, content, metadata.
+    Falls back silently to empty list if MS-013 is unavailable.
+    """
+    try:
+        resp = httpx.post(
+            f"{learning_service_url}/api/v1/learning/context",
+            json={
+                "query": transcription_text[:2000],
+                "source_types": ["knowledge_document", "approved_feedback", "best_practice"],
+                "limit": limit,
+            },
+            timeout=15.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("chunks", [])
+    except Exception as exc:
+        logger.warning("Could not fetch semantic context from MS-013: %s", exc)
+        return []

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     SERVICE_NAME: str = "ms-011-knowledge"
     OTEL_EXPORTER_ENABLED: bool = False
+    LEARNING_SERVICE_URL: str = "http://ms-013-learning:8000"
     # JSON list of crawl sources — overrides built-in defaults when set
     SEDUC_CRAWLER_SOURCES: str = ""
     # Hour (0-23) and minute at which the daily crawl runs (America/Sao_Paulo)

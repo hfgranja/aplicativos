@@ -1,10 +1,14 @@
 import json
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from jose import JWTError
+import httpx
+
+logger = logging.getLogger(__name__)
 
 from ...database import get_db
 from ...models.feedback import Feedback, FeedbackVersion, ActionItem
@@ -149,7 +153,36 @@ def approve_feedback(feedback_id: str, db: Session = Depends(get_db), user=Depen
     _publish(EVT_FEEDBACK_APPROVED,
              {"feedback_id": fb.id, "observation_id": fb.observation_id},
              correlation_id=fb.observation_id)
+
+    # Notify MS-013 Learning Engine: store as approved training example
+    _notify_learning_engine(fb)
+
     return fb
+
+
+def _notify_learning_engine(fb) -> None:
+    learning_url = settings.LEARNING_SERVICE_URL
+    if not learning_url:
+        return
+    feedback_content = {
+        "summary": fb.summary or "",
+        "strengths": fb.strengths or [],
+        "improvement_points": fb.improvement_points or [],
+        "suggested_action_plan": fb.suggested_action_plan or [],
+    }
+    try:
+        httpx.post(
+            f"{learning_url}/api/v1/learning/ingest/feedback",
+            json={
+                "feedback_id": str(fb.id),
+                "transcription_snippet": fb.transcription_text or "",
+                "feedback_dict": feedback_content,
+                "observation_context": {"observation_id": str(fb.observation_id)},
+            },
+            timeout=5.0,
+        )
+    except Exception as exc:
+        logger.warning("Could not notify learning engine: %s", exc)
 
 
 @router.get("/{feedback_id}/versions")

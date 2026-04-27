@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "ollama"  # ollama | anthropic
     KNOWLEDGE_BASE_URL: str = "http://ms-011-knowledge:8011"
     KNOWLEDGE_MAX_CHUNKS: int = 5
+    LEARNING_SERVICE_URL: str = "http://ms-013-learning:8000"
     OTEL_SERVICE_NAME: str = "pec-ai-feedback"
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
     OTEL_EXPORTER_ENABLED: str = "false"

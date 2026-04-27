@@ -87,7 +87,10 @@ def _process_transcription_completed(payload: dict, r) -> None:
             "segment_count": payload.get("segment_count", 0),
         }
 
-        from ...adapters.llm.ollama_adapter import generate_feedback, fetch_knowledge_context
+        from ...adapters.llm.ollama_adapter import (
+            generate_feedback, fetch_knowledge_context, fetch_semantic_context,
+        )
+        # 1. Structured knowledge chunks from MS-011 (subject/grade filtered)
         knowledge = fetch_knowledge_context(
             knowledge_base_url=settings.KNOWLEDGE_BASE_URL,
             subject=payload.get("subject", ""),
@@ -96,14 +99,28 @@ def _process_transcription_completed(payload: dict, r) -> None:
             max_chunks=settings.KNOWLEDGE_MAX_CHUNKS,
         )
         active_style = knowledge.get("active_style") or {}
+
+        # 2. Semantic RAG context from MS-013: approved examples + knowledge embeddings
+        semantic_chunks = fetch_semantic_context(
+            learning_service_url=settings.LEARNING_SERVICE_URL,
+            transcription_text=transcription_text,
+            limit=4,
+        )
+        # Merge: structured chunks first (higher signal), semantic second
+        merged_chunks = knowledge.get("chunks", []) + [c["content"] for c in semantic_chunks]
+        merged_titles = knowledge.get("document_titles", []) + [
+            c.get("metadata", {}).get("title", c["source_id"])
+            for c in semantic_chunks
+        ]
+
         result = generate_feedback(
             transcription_text=transcription_text,
             observation_context=observation_context,
             base_url=settings.OLLAMA_BASE_URL,
             model=settings.OLLAMA_MODEL,
-            knowledge_chunks=knowledge.get("chunks", []),
+            knowledge_chunks=merged_chunks,
             style_prompt=active_style.get("template_prompt"),
-            document_titles=knowledge.get("document_titles", []),
+            document_titles=merged_titles,
         )
         _validate_ai_response(result)
 

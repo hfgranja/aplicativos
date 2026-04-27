@@ -208,7 +208,29 @@ def _ingest_url(db, url: str, source: dict) -> Optional[str]:
 
     _log_crawl(db, url, source["name"], success=True, title=title, doc_id=doc.id)
     logger.info("Ingested '%s' from %s (doc=%s, %d chunks)", title, source["name"], doc.id, doc.chunk_count)
+
+    # Forward to MS-013 Learning Engine for embedding + RAG indexing
+    _notify_learning_engine(doc_id=doc.id, title=doc.title, content=doc.full_text, source_url=url)
+
     return doc.id
+
+
+def _notify_learning_engine(doc_id: str, title: str, content: str, source_url: str) -> None:
+    learning_url = getattr(settings, "LEARNING_SERVICE_URL", "http://ms-013-learning:8000")
+    try:
+        httpx.post(
+            f"{learning_url}/api/v1/learning/ingest/document",
+            json={
+                "doc_id": doc_id,
+                "title": title,
+                "content": content,
+                "source_url": source_url,
+                "extra_meta": {"type": "seduc_crawl"},
+            },
+            timeout=10.0,
+        )
+    except Exception as exc:
+        logger.warning("Could not forward doc to learning engine: %s", exc)
 
 
 def run_crawl() -> dict:

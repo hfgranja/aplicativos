@@ -90,13 +90,29 @@ services:
       - ollama_data:/root/.ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 10
     networks:
       - pec-network
-    profiles:
-      - llm
+
+  # Pulls base model + embedding model on first start; exits 0 when done
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: /bin/sh -c "
+      ollama pull ${OLLAMA_MODEL:-llama3.2} &&
+      ollama pull ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text} &&
+      echo 'Models ready'
+    "
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      - pec-network
 
   # ─── Microservices ────────────────────────────────────────────
 
@@ -211,6 +227,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_ai_feedback
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${PEC_MODEL_NAME:-pec-pedagogo}
+      LEARNING_SERVICE_URL: http://ms-013-learning:8000
       OTEL_SERVICE_NAME: pec-ai-feedback
     ports:
       - "8006:8000"
@@ -218,6 +237,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     networks:
       - pec-network
@@ -348,6 +369,38 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+    networks:
+      - pec-network
+
+  ms-013-learning:
+    build:
+      context: .
+      dockerfile: services/ms-013-learning/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_learning
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      PEC_MODEL_NAME: ${PEC_MODEL_NAME:-pec-pedagogo}
+      REBUILD_THRESHOLD: ${REBUILD_THRESHOLD:-5}
+      KNOWLEDGE_SERVICE_URL: http://ms-011-knowledge:8011
+      OTEL_SERVICE_NAME: pec-learning
+    ports:
+      - "8013:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
     networks:
       - pec-network

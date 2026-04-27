@@ -13,3 +13,8 @@ CREATE DATABASE pec_audit;
 CREATE DATABASE pec_consent;
 CREATE DATABASE pec_knowledge;
 CREATE DATABASE pec_best_practices;
+CREATE DATABASE pec_learning;
+
+-- Enable pgvector extension in pec_learning (used by MS-013)
+\c pec_learning
+CREATE EXTENSION IF NOT EXISTS vector;

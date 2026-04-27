@@ -95,6 +95,42 @@ services:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
 
+  ollama:
+    <<: *svc
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama-init:
+    <<: *svc
+    restart: "no"
+    image: ollama/ollama:latest
+    depends_on:
+      ollama: {condition: service_healthy}
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: /bin/sh -c "
+      ollama pull ${OLLAMA_MODEL:-llama3.2} &&
+      ollama pull ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text} &&
+      echo 'Models ready'
+    "
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+
   # ── Microservices ───────────────────────────────────────────────────────────
 
   ms-001-identity:
@@ -268,9 +304,13 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pec_ai_feedback
       REDIS_URL:    redis://redis:6379/0
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${PEC_MODEL_NAME:-pec-pedagogo}
+      LEARNING_SERVICE_URL: http://ms-013-learning:8000
     depends_on:
       postgres: {condition: service_healthy}
       redis:    {condition: service_healthy}
+      ollama:   {condition: service_healthy}
     deploy:
       resources:
         limits:
@@ -459,6 +499,46 @@ services:
       timeout: 10s
       retries: 5
 
+  ms-013-learning:
+    <<: *svc
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.12-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y --no-install-recommends \
+            build-essential libpq-dev curl && rm -rf /var/lib/apt/lists/*
+        COPY shared /shared
+        RUN pip install --no-cache-dir -e /shared
+        COPY services/ms-013-learning/requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY services/ms-013-learning/app ./app
+        ENV PYTHONUNBUFFERED=1
+        CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","1","--log-level","warning"]
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/pec_learning
+      REDIS_URL:    redis://redis:6379/0
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      PEC_MODEL_NAME: ${PEC_MODEL_NAME:-pec-pedagogo}
+      REBUILD_THRESHOLD: ${REBUILD_THRESHOLD:-5}
+      KNOWLEDGE_SERVICE_URL: http://ms-011-knowledge:8011
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis:    {condition: service_healthy}
+      ollama:   {condition: service_healthy}
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+
   # ── API Gateway — the only public-facing service ────────────────────────────
   # Serves the React SPA and reverse-proxies all /api/v1/* to microservices.
 
@@ -477,6 +557,7 @@ services:
       ms-007-feedback:       {condition: service_healthy}
       ms-011-knowledge:      {condition: service_healthy}
       ms-012-best-practices: {condition: service_healthy}
+      ms-013-learning:       {condition: service_healthy}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/health"]
       interval: 10s
