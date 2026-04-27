@@ -5,6 +5,7 @@ from .config import settings
 from .database import engine
 from .adapters.api.practices_router import router as practices_router
 from .adapters.events.feedback_consumer import start_consumer, stop_consumer
+from .application.use_cases import video_queue
 import redis as redis_lib
 
 init_telemetry(settings.SERVICE_NAME, enabled=settings.OTEL_EXPORTER_ENABLED)
@@ -19,6 +20,7 @@ _redis: redis_lib.Redis | None = None
 def startup():
     global _redis
     Base.metadata.create_all(bind=engine)
+    video_queue.start()
     try:
         _redis = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
         start_consumer(_redis)
@@ -30,6 +32,7 @@ def startup():
 @app.on_event("shutdown")
 def shutdown():
     stop_consumer()
+    video_queue.stop()
 
 
 @app.get("/health")

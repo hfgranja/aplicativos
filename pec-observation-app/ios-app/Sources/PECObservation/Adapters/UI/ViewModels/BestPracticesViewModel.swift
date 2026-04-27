@@ -82,6 +82,20 @@ public final class BestPracticesViewModel {
 
     // MARK: - Parsing helpers
 
+    public func fetchVideoUrl(cardId: String) async -> URL? {
+        do {
+            let response: [String: Any] = try await network.get(
+                "/api/v1/best-practices/\(cardId)/video-url"
+            )
+            if let urlString = response["url"] as? String {
+                return URL(string: urlString)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        return nil
+    }
+
     private func parseCard(_ m: [String: Any]) -> BestPracticeCard? {
         guard let id    = m["id"]    as? String,
               let title = m["title"] as? String else { return nil }
@@ -98,6 +112,9 @@ public final class BestPracticesViewModel {
             status:         m["status"]      as? String ?? "",
             hasAudio:       m["has_audio"]   as? Bool ?? false,
             audioUrl:       m["audio_url"]   as? String,
+            hasVideo:       m["has_video"]   as? Bool ?? false,
+            videoStatus:    m["video_status"] as? String ?? "pending",
+            videoDurationS: m["video_duration_s"] as? Int,
             createdAt:      m["created_at"]  as? String ?? "",
             publishedAt:    m["published_at"] as? String
         )

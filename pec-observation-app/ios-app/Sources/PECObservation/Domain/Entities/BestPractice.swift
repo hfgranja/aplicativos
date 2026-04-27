@@ -45,10 +45,13 @@ public struct BestPracticeCard: Identifiable, Codable, Equatable {
     public let rubricAlignment: [String]
     public let tags:           [String]
     public let status:         String
-    public let hasAudio:       Bool
-    public let audioUrl:       String?
-    public let createdAt:      String
-    public let publishedAt:    String?
+    public let hasAudio:        Bool
+    public let audioUrl:        String?
+    public let hasVideo:        Bool
+    public let videoStatus:     String   // pending | processing | ready | failed
+    public let videoDurationS:  Int?
+    public let createdAt:       String
+    public let publishedAt:     String?
 
     public var criterionEnum: PedagogicalCriterion? {
         PedagogicalCriterion(rawValue: criterion)
@@ -56,12 +59,15 @@ public struct BestPracticeCard: Identifiable, Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, title, criterion, subject, grade, excerpt, tags, status
-        case aiExplanation  = "ai_explanation"
+        case aiExplanation   = "ai_explanation"
         case rubricAlignment = "rubric_alignment"
-        case hasAudio       = "has_audio"
-        case audioUrl       = "audio_url"
-        case createdAt      = "created_at"
-        case publishedAt    = "published_at"
+        case hasAudio        = "has_audio"
+        case audioUrl        = "audio_url"
+        case hasVideo        = "has_video"
+        case videoStatus     = "video_status"
+        case videoDurationS  = "video_duration_s"
+        case createdAt       = "created_at"
+        case publishedAt     = "published_at"
     }
 }
 

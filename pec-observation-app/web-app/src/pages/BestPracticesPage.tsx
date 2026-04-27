@@ -14,7 +14,7 @@ type Tab = 'published' | 'draft'
 const CRITERIA = ['', 'planejamento', 'didatica', 'engajamento', 'avaliacao', 'gestao'] as const
 
 export function BestPracticesPage() {
-  const { cards, loading, error, loadLibrary, publish, distribute, archive } = useBestPractices()
+  const { cards, loading, error, loadLibrary, publish, distribute, archive, getVideoUrl } = useBestPractices()
   const [tab, setTab]           = useState<Tab>('published')
   const [criterion, setCriterion] = useState('')
   const [distributeCard, setDistributeCard] = useState<BestPracticeCard | null>(null)
@@ -92,6 +92,7 @@ export function BestPracticesPage() {
                 onPublish={tab === 'draft' ? (id, title) => publish(id, title) : undefined}
                 onDistribute={tab === 'published' ? (c) => setDistributeCard(c) : undefined}
                 onArchive={(id) => archive(id)}
+                getVideoUrl={getVideoUrl}
               />
             ))}
           </div>

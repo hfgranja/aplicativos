@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, DateTime, func
+from sqlalchemy import Column, String, Text, Integer
 from pec_shared.models_base import Base
 
 
@@ -13,6 +13,10 @@ class BestPracticeCardModel(Base):
     excerpt               = Column(Text, nullable=False)
     ai_explanation        = Column(Text, nullable=False)
     audio_clip_key        = Column(String(300), nullable=True)
+    # Anime-style practice video
+    video_key             = Column(String(300), nullable=True)
+    video_status          = Column(String(20),  default="pending")  # pending|processing|ready|failed
+    video_duration_s      = Column(Integer,     nullable=True)
     rubric_alignment      = Column(Text, default="[]")   # JSON list
     tags                  = Column(Text, default="[]")   # JSON list
     status                = Column(String(20), default="draft", nullable=False)

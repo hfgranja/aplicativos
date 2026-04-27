@@ -72,6 +72,14 @@ class BestPracticesViewModel @Inject constructor(
         }
     }
 
+    suspend fun fetchVideoUrl(cardId: String): String? = try {
+        val raw = network.get("/api/v1/best-practices/$cardId/video-url")
+        raw["url"] as? String
+    } catch (e: Exception) {
+        errorMessage = e.message
+        null
+    }
+
     @Suppress("UNCHECKED_CAST")
     private fun parseCards(raw: Map<String, Any>): List<BestPracticeCard> =
         (raw["items"] as? List<Map<String, Any>> ?: emptyList()).map { m ->
@@ -88,6 +96,9 @@ class BestPracticesViewModel @Inject constructor(
                 status         = m["status"]         as? String ?: "",
                 hasAudio       = m["has_audio"]      as? Boolean ?: false,
                 audioUrl       = m["audio_url"]      as? String,
+                hasVideo       = m["has_video"]      as? Boolean ?: false,
+                videoStatus    = m["video_status"]   as? String ?: "pending",
+                videoDurationS = (m["video_duration_s"] as? Number)?.toInt(),
                 createdAt      = m["created_at"]     as? String ?: "",
                 publishedAt    = m["published_at"]   as? String,
             )

@@ -1,14 +1,13 @@
-"""Consumes pec.feedback.events → extracts + stores best-practice cards."""
+"""Consumes pec.feedback.events → extracts best-practice cards + queues video."""
 import json
 import logging
 import threading
-import uuid
-from datetime import datetime, timezone
 
 import httpx
 
 from pec_shared.events import consume_events, ack_event, STREAM_FEEDBACK
 from ...application.use_cases.extract_best_practices import extract_cards
+from ...application.use_cases import video_queue
 from ...database import SessionLocal
 from ...models.practice import BestPracticeCardModel
 from ...config import settings
@@ -24,57 +23,66 @@ _stop_event = threading.Event()
 
 
 def _fetch_audio(observation_id: str) -> tuple[bytes | None, list[dict]]:
-    """Try to fetch audio bytes from MS-004 and segments from MS-005."""
     audio_bytes = None
     segments: list[dict] = []
     try:
-        resp = httpx.get(
-            f"{settings.AUDIO_SERVICE_URL}/api/v1/audio/{observation_id}/download",
-            timeout=15.0,
-        )
-        if resp.status_code == 200:
-            audio_bytes = resp.content
+        r = httpx.get(f"{settings.AUDIO_SERVICE_URL}/api/v1/audio/{observation_id}/download",
+                      timeout=15.0)
+        if r.status_code == 200:
+            audio_bytes = r.content
     except Exception as exc:
-        logger.debug("Could not fetch audio for %s: %s", observation_id, exc)
-
+        logger.debug("Audio fetch failed %s: %s", observation_id, exc)
     try:
-        resp = httpx.get(
+        r = httpx.get(
             f"{settings.TRANSCRIPTION_SERVICE_URL}/api/v1/transcriptions/{observation_id}/segments",
-            timeout=10.0,
-        )
-        if resp.status_code == 200:
-            segments = resp.json().get("segments", [])
+            timeout=10.0)
+        if r.status_code == 200:
+            segments = r.json().get("segments", [])
     except Exception as exc:
-        logger.debug("Could not fetch segments for %s: %s", observation_id, exc)
-
+        logger.debug("Segments fetch failed %s: %s", observation_id, exc)
     return audio_bytes, segments
 
 
-def _save_cards(cards, pec_id: str) -> None:
+def _save_and_enqueue(cards, pec_id: str) -> None:
     db = SessionLocal()
     try:
         for card in cards:
-            db.add(BestPracticeCardModel(
-                id                    = card.id,
-                title                 = card.title,
-                criterion             = card.criterion.value,
-                subject               = card.subject,
-                grade                 = card.grade,
-                excerpt               = card.excerpt,
-                ai_explanation        = card.ai_explanation,
-                audio_clip_key        = card.audio_clip_key,
-                rubric_alignment      = json.dumps(card.rubric_alignment, ensure_ascii=False),
-                tags                  = json.dumps(card.tags, ensure_ascii=False),
-                status                = card.status.value,
-                source_observation_id = card.source_observation_id,
-                created_by_pec_id     = card.created_by_pec_id,
-                created_at            = card.created_at,
-            ))
+            row = BestPracticeCardModel(
+                id=card.id, title=card.title, criterion=card.criterion.value,
+                subject=card.subject, grade=card.grade, excerpt=card.excerpt,
+                ai_explanation=card.ai_explanation,
+                audio_clip_key=card.audio_clip_key,
+                rubric_alignment=json.dumps(card.rubric_alignment, ensure_ascii=False),
+                tags=json.dumps(card.tags, ensure_ascii=False),
+                status=card.status.value,
+                source_observation_id=card.source_observation_id,
+                created_by_pec_id=card.created_by_pec_id,
+                created_at=card.created_at,
+                video_status="pending",
+            )
+            db.add(row)
         db.commit()
-        logger.info("Saved %d best-practice cards", len(cards))
+
+        # Enqueue video generation for each saved card
+        for card in cards:
+            video_queue.enqueue(
+                card_id       = card.id,
+                card_data     = {
+                    "title":          card.title,
+                    "subject":        card.subject,
+                    "grade":          card.grade,
+                    "criterion":      card.criterion.value,
+                    "excerpt":        card.excerpt,
+                    "ai_explanation": card.ai_explanation,
+                    "rubric_alignment": card.rubric_alignment,
+                },
+                audio_clip_key = card.audio_clip_key,
+            )
+
+        logger.info("Saved %d cards and enqueued video generation", len(cards))
     except Exception as exc:
         db.rollback()
-        logger.error("Failed to save cards: %s", exc)
+        logger.error("Save/enqueue failed: %s", exc)
     finally:
         db.close()
 
@@ -91,16 +99,12 @@ def _process(payload: dict) -> None:
 
     audio_bytes, segments = _fetch_audio(observation_id)
     cards = extract_cards(
-        observation_id = observation_id,
-        pec_id         = pec_id,
-        subject        = subject,
-        grade          = grade,
-        feedback       = feedback,
-        audio_bytes    = audio_bytes,
-        segments       = segments,
+        observation_id=observation_id, pec_id=pec_id,
+        subject=subject, grade=grade, feedback=feedback,
+        audio_bytes=audio_bytes, segments=segments,
     )
     if cards:
-        _save_cards(cards, pec_id)
+        _save_and_enqueue(cards, pec_id)
 
 
 def start_consumer(redis_client) -> None:
@@ -116,10 +120,10 @@ def start_consumer(redis_client) -> None:
                         _process(json.loads(data.get("payload", "{}")))
                     ack_event(redis_client, STREAM_FEEDBACK, CONSUMER_GROUP, msg_id)
             except Exception as exc:
-                logger.error("Best-practices consumer error: %s", exc)
+                logger.error("Consumer error: %s", exc)
 
     threading.Thread(target=_loop, daemon=True).start()
 
 
-def stop_consumer():
+def stop_consumer() -> None:
     _stop_event.set()

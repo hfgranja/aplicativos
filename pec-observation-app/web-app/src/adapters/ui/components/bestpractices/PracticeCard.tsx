@@ -4,13 +4,14 @@ import { CRITERION_LABELS, CRITERION_EMOJI } from '../../../../domain/entities/B
 import { Modal } from '../common/Modal'
 
 interface Props {
-  card:       BestPracticeCard
-  onPublish?: (id: string, title: string) => void
+  card:          BestPracticeCard
+  onPublish?:    (id: string, title: string) => void
   onDistribute?: (card: BestPracticeCard) => void
-  onArchive?: (id: string) => void
+  onArchive?:    (id: string) => void
+  getVideoUrl?:  (cardId: string) => Promise<string | null>
 }
 
-export function PracticeCard({ card, onPublish, onDistribute, onArchive }: Props) {
+export function PracticeCard({ card, onPublish, onDistribute, onArchive, getVideoUrl }: Props) {
   const [showDetail, setShowDetail] = useState(false)
   const emoji = CRITERION_EMOJI[card.criterion] ?? '📚'
   const label = CRITERION_LABELS[card.criterion] ?? card.criterion
@@ -32,6 +33,12 @@ export function PracticeCard({ card, onPublish, onDistribute, onArchive }: Props
               <span className="badge badge-gray">{card.grade}</span>
               {card.hasAudio && (
                 <span className="badge badge-green">🎙 Áudio</span>
+              )}
+              {card.hasVideo && (
+                <span className="badge badge-purple">🎬 Vídeo</span>
+              )}
+              {card.videoStatus === 'processing' && (
+                <span className="badge badge-orange">⏳ Gerando…</span>
               )}
             </div>
           </div>
@@ -67,19 +74,30 @@ export function PracticeCard({ card, onPublish, onDistribute, onArchive }: Props
 
       {showDetail && (
         <PracticeDetailModal card={card} onClose={() => setShowDetail(false)}
-          onPublish={onPublish} onDistribute={onDistribute} />
+          onPublish={onPublish} onDistribute={onDistribute} getVideoUrl={getVideoUrl} />
       )}
     </>
   )
 }
 
-function PracticeDetailModal({ card, onClose, onPublish, onDistribute }: {
+function PracticeDetailModal({ card, onClose, onPublish, onDistribute, getVideoUrl }: {
   card: BestPracticeCard
   onClose: () => void
   onPublish?: (id: string, title: string) => void
   onDistribute?: (card: BestPracticeCard) => void
+  getVideoUrl?: (cardId: string) => Promise<string | null>
 }) {
-  const [editTitle, setEditTitle] = useState(card.title)
+  const [editTitle, setEditTitle]       = useState(card.title)
+  const [videoSrc, setVideoSrc]         = useState<string | null>(null)
+  const [videoLoading, setVideoLoading] = useState(false)
+
+  async function handleWatchVideo() {
+    if (!getVideoUrl) return
+    setVideoLoading(true)
+    const url = await getVideoUrl(card.id)
+    setVideoLoading(false)
+    if (url) setVideoSrc(url)
+  }
 
   return (
     <Modal
@@ -161,6 +179,45 @@ function PracticeDetailModal({ card, onClose, onPublish, onDistribute }: {
             <input className="input" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
           </div>
         )}
+
+        {/* Video section */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            Vídeo da boa prática
+          </p>
+          {card.videoStatus === 'ready' && !videoSrc && (
+            <button
+              className="btn-primary w-full"
+              onClick={handleWatchVideo}
+              disabled={videoLoading}
+            >
+              {videoLoading ? '⏳ Carregando…' : '▶ Assistir vídeo anime'}
+              {card.videoDurationS != null && !videoLoading && (
+                <span className="ml-2 text-xs opacity-75">
+                  ({Math.floor(card.videoDurationS / 60)}m{card.videoDurationS % 60}s)
+                </span>
+              )}
+            </button>
+          )}
+          {videoSrc && (
+            <video
+              src={videoSrc}
+              controls
+              autoPlay
+              className="w-full rounded-lg mt-1"
+              style={{ maxHeight: '360px' }}
+            />
+          )}
+          {card.videoStatus === 'processing' && (
+            <p className="text-xs text-orange-600">⏳ Vídeo sendo gerado…</p>
+          )}
+          {card.videoStatus === 'failed' && (
+            <p className="text-xs text-red-600">⚠️ Falha na geração do vídeo</p>
+          )}
+          {card.videoStatus === 'pending' && (
+            <p className="text-xs text-gray-400">🎬 Vídeo será gerado em breve</p>
+          )}
+        </div>
 
         {/* Privacy notice */}
         <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">

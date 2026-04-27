@@ -4,7 +4,9 @@ from app.config import settings
 from app.database import SessionLocal
 from app.models.document import KnowledgeDocumentModel, DocumentChunkModel
 from app.models.feedback_style import FeedbackStyleModel
+from app.models.crawl_log import CrawlLogModel  # noqa: F401 — ensures table is created
 from app.adapters.api.knowledge_router import router as knowledge_router
+from app.adapters.scheduler.seduc_crawler import start_scheduler, stop_scheduler, run_crawl
 from pec_shared.models_base import Base
 from sqlalchemy import create_engine
 import json, uuid
@@ -20,6 +22,7 @@ def startup():
     engine = create_engine(settings.DATABASE_URL)
     Base.metadata.create_all(bind=engine)
     _seed_default_style()
+    start_scheduler(run_hour=settings.CRAWLER_HOUR, run_minute=settings.CRAWLER_MINUTE)
 
 
 def _seed_default_style():
@@ -47,6 +50,41 @@ def _seed_default_style():
         db.close()
 
 
+@app.on_event("shutdown")
+def shutdown():
+    stop_scheduler()
+
+
 @app.get("/health")
 def health():
     return {"status": "healthy", "service": settings.SERVICE_NAME}
+
+
+@app.post("/api/v1/crawler/run", tags=["crawler"])
+def trigger_crawl():
+    """Manually trigger a SEDUC crawl cycle (useful for testing)."""
+    result = run_crawl()
+    return {"status": "done", **result}
+
+
+@app.get("/api/v1/crawler/log", tags=["crawler"])
+def crawl_log(limit: int = 50):
+    """Return recent crawl log entries."""
+    db = SessionLocal()
+    try:
+        rows = db.query(CrawlLogModel).order_by(
+            CrawlLogModel.crawled_at.desc()
+        ).limit(limit).all()
+        return {"items": [
+            {
+                "url":        r.url,
+                "source":     r.source,
+                "title":      r.title,
+                "success":    r.success,
+                "error":      r.error_msg,
+                "crawled_at": r.crawled_at.isoformat() if r.crawled_at else None,
+            }
+            for r in rows
+        ]}
+    finally:
+        db.close()

@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import AVKit
+#endif
 
 public struct BestPracticesView: View {
     @State var vm: BestPracticesViewModel
@@ -102,6 +105,15 @@ struct PracticeCardRow: View {
                         .font(.caption2)
                         .foregroundStyle(.blue)
                 }
+                if card.hasVideo {
+                    Label("Vídeo", systemImage: "play.rectangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.purple)
+                } else if card.videoStatus == "processing" {
+                    Label("Gerando…", systemImage: "film.stack")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
             Text(card.title)
                 .font(.subheadline.weight(.semibold))
@@ -140,6 +152,9 @@ struct PracticeDetailView: View {
     @State var vm: BestPracticesViewModel
     @State private var showDistributeSheet = false
     @State private var publishTitle = ""
+    @State private var videoURL: URL? = nil
+    @State private var videoLoading = false
+    @State private var showVideoPlayer = false
 
     var body: some View {
         ScrollView {
@@ -188,6 +203,11 @@ struct PracticeDetailView: View {
                     }
                 }
 
+                // Video section
+                #if os(iOS)
+                videoSection
+                #endif
+
                 Divider()
 
                 // Actions
@@ -221,9 +241,95 @@ struct PracticeDetailView: View {
         .sheet(isPresented: $showDistributeSheet) {
             DistributeSheet(card: card, vm: vm)
         }
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showVideoPlayer) {
+            if let url = videoURL {
+                VideoPlayerView(url: url, onClose: { showVideoPlayer = false })
+            }
+        }
+        #endif
         .onAppear { publishTitle = card.title }
     }
+
+    #if os(iOS)
+    @ViewBuilder
+    private var videoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Vídeo da boa prática", systemImage: "play.rectangle.fill")
+                .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+
+            switch card.videoStatus {
+            case "ready":
+                Button {
+                    guard !videoLoading else { return }
+                    videoLoading = true
+                    Task {
+                        videoURL = await vm.fetchVideoUrl(cardId: card.id)
+                        videoLoading = false
+                        if videoURL != nil { showVideoPlayer = true }
+                    }
+                } label: {
+                    if videoLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Label("Assistir vídeo anime", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+                .disabled(videoLoading)
+
+                if let dur = card.videoDurationS {
+                    Text("Duração: \(dur / 60)m \(dur % 60)s")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+
+            case "processing":
+                HStack {
+                    ProgressView().scaleEffect(0.8)
+                    Text("Gerando vídeo… aguarde")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(10)
+                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+            case "failed":
+                Label("Falha na geração do vídeo", systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.red)
+
+            default: // pending
+                Label("Vídeo será gerado em breve", systemImage: "clock")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+    #endif
 }
+
+// MARK: - Video Player (iOS only)
+
+#if os(iOS)
+private struct VideoPlayerView: View {
+    let url: URL
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VideoPlayer(player: AVPlayer(url: url))
+                .ignoresSafeArea()
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title)
+                    .foregroundStyle(.white)
+                    .shadow(radius: 4)
+            }
+            .padding()
+        }
+    }
+}
+#endif
 
 // MARK: - Distribute Sheet
 

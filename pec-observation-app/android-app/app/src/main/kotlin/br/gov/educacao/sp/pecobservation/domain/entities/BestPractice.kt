@@ -25,6 +25,9 @@ data class BestPracticeCard(
     val status:         String,
     val hasAudio:       Boolean,
     val audioUrl:       String?,
+    val hasVideo:       Boolean,
+    val videoStatus:    String,   // pending | processing | ready | failed
+    val videoDurationS: Int?,
     val createdAt:      String,
     val publishedAt:    String?,
 ) {

@@ -32,6 +32,9 @@ export interface BestPracticeCard {
   status:          PracticeStatus
   hasAudio:        boolean
   audioUrl?:       string
+  hasVideo:        boolean
+  videoStatus:     'pending' | 'processing' | 'ready' | 'failed'
+  videoDurationS?: number
   createdAt:       string
   publishedAt?:    string
 }

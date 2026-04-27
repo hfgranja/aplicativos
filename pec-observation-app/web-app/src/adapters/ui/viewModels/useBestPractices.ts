@@ -21,6 +21,9 @@ function mapCard(m: Record<string, unknown>): BestPracticeCard {
     status:          m.status as BestPracticeCard['status'],
     hasAudio:        (m.has_audio as boolean) ?? false,
     audioUrl:        m.audio_url as string | undefined,
+    hasVideo:        (m.has_video as boolean) ?? false,
+    videoStatus:     (m.video_status as BestPracticeCard['videoStatus']) ?? 'pending',
+    videoDurationS:  m.video_duration_s as number | undefined,
     createdAt:       m.created_at as string,
     publishedAt:     m.published_at as string | undefined,
   }
@@ -97,5 +100,15 @@ export function useBestPractices() {
     }
   }, [])
 
-  return { cards, distributions, loading, error, loadLibrary, publish, distribute, archive, loadMyDistributions }
+  const getVideoUrl = useCallback(async (cardId: string): Promise<string | null> => {
+    try {
+      const data = await client.get<{ url: string }>(`/api/v1/best-practices/${cardId}/video-url`)
+      return data.url
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erro ao obter URL do vídeo')
+      return null
+    }
+  }, [])
+
+  return { cards, distributions, loading, error, loadLibrary, publish, distribute, archive, loadMyDistributions, getVideoUrl }
 }
