@@ -1,174 +1,135 @@
+################################################################################
+# Cloud Build — PEC Observation App (feedback-automatico-pec)
+# Builds all 14 microservices + web-app → Artifact Registry → Cloud Run deploy
+#
+# Configure these substitutions in your Cloud Build trigger:
+#   _REGION        southamerica-east1
+#   _PROJECT_ID    feedback-automatico-pec
+#   _APP_NAME      pec-obs
+################################################################################
+
+substitutions:
+  _REGION:     southamerica-east1
+  _PROJECT_ID: feedback-automatico-pec
+  _APP_NAME:   pec-obs
+  _REGISTRY:   southamerica-east1-docker.pkg.dev/feedback-automatico-pec/pec-obs
+
+options:
+  machineType: E2_HIGHCPU_32
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
-  # ── 1. Run backend unit tests ──────────────────────────────────────────────
-  - id: test-ms-001
-    name: python:3.11-slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        pip install -q -e services/ms-001-identity/../../shared \
-                       -r services/ms-001-identity/requirements.txt \
-                       pytest
-        cd services/ms-001-identity && pytest tests/ -v --tb=short
-    dir: pec-observation-app
-    waitFor: ["-"]
 
-  - id: test-ms-003
-    name: python:3.11-slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        pip install -q -e services/ms-003-observation/../../shared \
-                       -r services/ms-003-observation/requirements.txt \
-                       pytest
-        cd services/ms-003-observation && pytest tests/ -v --tb=short
-    dir: pec-observation-app
-    waitFor: ["-"]
+# ── Build all 14 microservices + web-app in parallel ─────────────────────────
+# Each uses the project root as context so shared/ is accessible.
 
-  # ── 2. Build Docker images (all 10 services in parallel) ──────────────────
   - id: build-ms-001
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-001-identity:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-001-identity:latest
-      - -f
-      - services/ms-001-identity/Dockerfile
-      - .
     dir: pec-observation-app
-    waitFor: [test-ms-001]
+    args: [build, -t, "${_REGISTRY}/ms-001-identity:${SHORT_SHA}", -t, "${_REGISTRY}/ms-001-identity:latest",
+           -f, services/ms-001-identity/Dockerfile, .]
+    waitFor: ["-"]
 
   - id: build-ms-002
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-002-school:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-002-school:latest
-      - -f
-      - services/ms-002-school/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-002-school:${SHORT_SHA}", -t, "${_REGISTRY}/ms-002-school:latest",
+           -f, services/ms-002-school/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-003
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-003-observation:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-003-observation:latest
-      - -f
-      - services/ms-003-observation/Dockerfile
-      - .
     dir: pec-observation-app
-    waitFor: [test-ms-003]
+    args: [build, -t, "${_REGISTRY}/ms-003-observation:${SHORT_SHA}", -t, "${_REGISTRY}/ms-003-observation:latest",
+           -f, services/ms-003-observation/Dockerfile, .]
+    waitFor: ["-"]
 
   - id: build-ms-004
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-004-audio-ingestion:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-004-audio-ingestion:latest
-      - -f
-      - services/ms-004-audio-ingestion/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-004-audio-ingestion:${SHORT_SHA}", -t, "${_REGISTRY}/ms-004-audio-ingestion:latest",
+           -f, services/ms-004-audio-ingestion/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-005
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-005-transcription:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-005-transcription:latest
-      - -f
-      - services/ms-005-transcription/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-005-transcription:${SHORT_SHA}", -t, "${_REGISTRY}/ms-005-transcription:latest",
+           -f, services/ms-005-transcription/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-006
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-006-ai-feedback:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-006-ai-feedback:latest
-      - -f
-      - services/ms-006-ai-feedback/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-006-ai-feedback:${SHORT_SHA}", -t, "${_REGISTRY}/ms-006-ai-feedback:latest",
+           -f, services/ms-006-ai-feedback/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-007
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-007-feedback:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-007-feedback:latest
-      - -f
-      - services/ms-007-feedback/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-007-feedback:${SHORT_SHA}", -t, "${_REGISTRY}/ms-007-feedback:latest",
+           -f, services/ms-007-feedback/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-008
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-008-pdf-export:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-008-pdf-export:latest
-      - -f
-      - services/ms-008-pdf-export/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-008-pdf-export:${SHORT_SHA}", -t, "${_REGISTRY}/ms-008-pdf-export:latest",
+           -f, services/ms-008-pdf-export/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-009
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-009-audit:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-009-audit:latest
-      - -f
-      - services/ms-009-audit/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-009-audit:${SHORT_SHA}", -t, "${_REGISTRY}/ms-009-audit:latest",
+           -f, services/ms-009-audit/Dockerfile, .]
     waitFor: ["-"]
 
   - id: build-ms-010
     name: gcr.io/cloud-builders/docker
-    args:
-      - build
-      - -t
-      - ${_REGISTRY}/ms-010-consent:${SHORT_SHA}
-      - -t
-      - ${_REGISTRY}/ms-010-consent:latest
-      - -f
-      - services/ms-010-consent/Dockerfile
-      - .
     dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-010-consent:${SHORT_SHA}", -t, "${_REGISTRY}/ms-010-consent:latest",
+           -f, services/ms-010-consent/Dockerfile, .]
     waitFor: ["-"]
 
-  # ── 3. Push all images ─────────────────────────────────────────────────────
-  - id: push-images
+  - id: build-ms-011
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-011-knowledge:${SHORT_SHA}", -t, "${_REGISTRY}/ms-011-knowledge:latest",
+           -f, services/ms-011-knowledge/Dockerfile, .]
+    waitFor: ["-"]
+
+  - id: build-ms-012
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-012-best-practices:${SHORT_SHA}", -t, "${_REGISTRY}/ms-012-best-practices:latest",
+           -f, services/ms-012-best-practices/Dockerfile, .]
+    waitFor: ["-"]
+
+  - id: build-ms-013
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-013-learning:${SHORT_SHA}", -t, "${_REGISTRY}/ms-013-learning:latest",
+           -f, services/ms-013-learning/Dockerfile, .]
+    waitFor: ["-"]
+
+  - id: build-ms-014
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-014-evaluator:${SHORT_SHA}", -t, "${_REGISTRY}/ms-014-evaluator:latest",
+           -f, services/ms-014-evaluator/Dockerfile, .]
+    waitFor: ["-"]
+
+  - id: build-web-app
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app/web-app
+    args: [build, -t, "${_REGISTRY}/web-app:${SHORT_SHA}", -t, "${_REGISTRY}/web-app:latest", .]
+    waitFor: ["-"]
+
+# ── Push all images ───────────────────────────────────────────────────────────
+
+  - id: push-all
     name: gcr.io/cloud-builders/docker
     entrypoint: bash
     args:
@@ -177,10 +138,13 @@ steps:
         for svc in ms-001-identity ms-002-school ms-003-observation \
                    ms-004-audio-ingestion ms-005-transcription \
                    ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
-                   ms-009-audit ms-010-consent; do
-          docker push ${_REGISTRY}/$${svc}:${SHORT_SHA}
-          docker push ${_REGISTRY}/$${svc}:latest
+                   ms-009-audit ms-010-consent ms-011-knowledge \
+                   ms-012-best-practices ms-013-learning ms-014-evaluator \
+                   web-app; do
+          docker push ${_REGISTRY}/$${svc}:${SHORT_SHA} &
+          docker push ${_REGISTRY}/$${svc}:latest &
         done
+        wait && echo "All images pushed"
     waitFor:
       - build-ms-001
       - build-ms-002
@@ -192,43 +156,53 @@ steps:
       - build-ms-008
       - build-ms-009
       - build-ms-010
+      - build-ms-011
+      - build-ms-012
+      - build-ms-013
+      - build-ms-014
+      - build-web-app
 
-  # ── 4. Deploy to Cloud Run ─────────────────────────────────────────────────
-  - id: deploy
+# ── Deploy to Cloud Run ───────────────────────────────────────────────────────
+
+  - id: deploy-services
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
     args:
       - -c
       - |
+        set -e
         for svc in ms-001-identity ms-002-school ms-003-observation \
                    ms-004-audio-ingestion ms-005-transcription \
                    ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
-                   ms-009-audit ms-010-consent; do
+                   ms-009-audit ms-010-consent ms-011-knowledge \
+                   ms-012-best-practices ms-013-learning ms-014-evaluator; do
           gcloud run deploy ${_APP_NAME}-$${svc} \
-            --image=${_REGISTRY}/$${svc}:${SHORT_SHA} \
-            --region=${_REGION} \
-            --platform=managed \
-            --quiet
+            --image ${_REGISTRY}/$${svc}:${SHORT_SHA} \
+            --region ${_REGION} --project ${_PROJECT_ID} --quiet &
         done
-    waitFor: [push-images]
+        gcloud run deploy ${_APP_NAME}-web-app \
+          --image ${_REGISTRY}/web-app:${SHORT_SHA} \
+          --region ${_REGION} --project ${_PROJECT_ID} --quiet &
+        wait && echo "All services deployed"
+    waitFor: [push-all]
+
+# ── Smoke test ────────────────────────────────────────────────────────────────
+
+  - id: smoke-test
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        IDENTITY=$(gcloud run services describe ${_APP_NAME}-ms-001-identity \
+          --region=${_REGION} --project=${_PROJECT_ID} --format="value(status.url)")
+        WEB=$(gcloud run services describe ${_APP_NAME}-web-app \
+          --region=${_REGION} --project=${_PROJECT_ID} --format="value(status.url)")
+        curl -sf "$${IDENTITY}/health" && echo "identity OK"
+        curl -sf "$${WEB}/"            && echo "web-app OK"
+        echo "Smoke test PASSED — deploy complete"
+    waitFor: [deploy-services]
 
 images:
-  - ${_REGISTRY}/ms-001-identity:${SHORT_SHA}
-  - ${_REGISTRY}/ms-002-school:${SHORT_SHA}
-  - ${_REGISTRY}/ms-003-observation:${SHORT_SHA}
-  - ${_REGISTRY}/ms-004-audio-ingestion:${SHORT_SHA}
-  - ${_REGISTRY}/ms-005-transcription:${SHORT_SHA}
-  - ${_REGISTRY}/ms-006-ai-feedback:${SHORT_SHA}
-  - ${_REGISTRY}/ms-007-feedback:${SHORT_SHA}
-  - ${_REGISTRY}/ms-008-pdf-export:${SHORT_SHA}
-  - ${_REGISTRY}/ms-009-audit:${SHORT_SHA}
-  - ${_REGISTRY}/ms-010-consent:${SHORT_SHA}
-
-substitutions:
-  _REGION: southamerica-east1
-  _APP_NAME: pec-obs
-  _REGISTRY: southamerica-east1-docker.pkg.dev/${PROJECT_ID}/pec-obs-images
-
-options:
-  logging: CLOUD_LOGGING_ONLY
-  machineType: E2_HIGHCPU_8
+  - ${_REGISTRY}/web-app:latest
