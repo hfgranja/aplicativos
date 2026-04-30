@@ -20,7 +20,13 @@ output "cloud_run_urls" {
     ms_012_best_practices = google_cloud_run_v2_service.ms["ms-012-best-practices"].uri
     ms_013_learning       = google_cloud_run_v2_service.ms["ms-013-learning"].uri
     ms_014_evaluator      = google_cloud_run_v2_service.ms["ms-014-evaluator"].uri
+    ms_015_mcp            = google_cloud_run_v2_service.ms["ms-015-mcp"].uri
   }
+}
+
+output "mcp_server_url" {
+  description = "MCP server endpoint — use as remote MCP server in Claude Desktop"
+  value       = "${google_cloud_run_v2_service.ms["ms-015-mcp"].uri}/mcp"
 }
 
 output "ollama_internal_ip" {

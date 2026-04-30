@@ -1,7 +1,7 @@
 locals {
   registry = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.main.repository_id}"
 
-  # ── All 14 microservices ────────────────────────────────────────────────────
+  # ── All 15 microservices ────────────────────────────────────────────────────
   service_names = [
     "ms-001-identity",
     "ms-002-school",
@@ -17,6 +17,7 @@ locals {
     "ms-012-best-practices",
     "ms-013-learning",
     "ms-014-evaluator",
+    "ms-015-mcp",
   ]
 
   # Per-service DB names and users
@@ -35,6 +36,8 @@ locals {
     "ms-012-best-practices"  = { db = "pec_best_practices",user = "pec_best_practices" }
     "ms-013-learning"        = { db = "pec_learning",      user = "pec_learning" }
     "ms-014-evaluator"       = { db = "pec_evaluator",     user = "pec_evaluator" }
+    # ms-015-mcp reads pec_learning + pec_evaluator — uses learning DB as primary
+    "ms-015-mcp"             = { db = "pec_learning",      user = "pec_learning" }
   }
 
   # Services that need Ollama access (internal VM IP)
@@ -140,6 +143,22 @@ resource "google_cloud_run_v2_service" "ms" {
           "?host=/cloudsql/",
           google_sql_database_instance.main.connection_name,
         ])
+      }
+
+      # ms-015-mcp also reads pec_evaluator DB directly
+      dynamic "env" {
+        for_each = each.value == "ms-015-mcp" ? [1] : []
+        content {
+          name = "DATABASE_URL_EVALUATOR"
+          value = join("", [
+            "postgresql+psycopg2://",
+            local.service_db_map["ms-014-evaluator"].user,
+            ":$(DB_PASSWORD)@/",
+            local.service_db_map["ms-014-evaluator"].db,
+            "?host=/cloudsql/",
+            google_sql_database_instance.main.connection_name,
+          ])
+        }
       }
 
       # Inter-service routing
@@ -267,6 +286,7 @@ resource "google_cloud_run_v2_service" "web_app" {
           KNOWLEDGE_URL      = google_cloud_run_v2_service.ms["ms-011-knowledge"].uri
           BEST_PRACTICES_URL = google_cloud_run_v2_service.ms["ms-012-best-practices"].uri
           EVALUATOR_URL      = google_cloud_run_v2_service.ms["ms-014-evaluator"].uri
+          MCP_URL            = google_cloud_run_v2_service.ms["ms-015-mcp"].uri
         }
         content {
           name  = env.key

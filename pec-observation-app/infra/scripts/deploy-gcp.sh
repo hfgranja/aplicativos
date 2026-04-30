@@ -81,6 +81,7 @@ if [[ "$SKIP_BUILD" == "false" ]]; then
     ms-006-ai-feedback ms-007-feedback ms-008-pdf-export
     ms-009-audit ms-010-consent ms-011-knowledge
     ms-012-best-practices ms-013-learning ms-014-evaluator
+    ms-015-mcp
   )
 
   SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "manual")
@@ -118,7 +119,7 @@ for svc in ms-001-identity ms-002-school ms-003-observation \
            ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
            ms-009-audit ms-010-consent ms-011-knowledge \
            ms-012-best-practices ms-013-learning ms-014-evaluator \
-           web-app; do
+           ms-015-mcp web-app; do
   docker push "${REGISTRY}/${svc}:latest" &
   PIDS+=($!)
 done
@@ -133,7 +134,8 @@ for svc in ms-001-identity ms-002-school ms-003-observation \
            ms-004-audio-ingestion ms-005-transcription \
            ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
            ms-009-audit ms-010-consent ms-011-knowledge \
-           ms-012-best-practices ms-013-learning ms-014-evaluator; do
+           ms-012-best-practices ms-013-learning ms-014-evaluator \
+           ms-015-mcp; do
   gcloud run deploy "${APP_NAME}-${svc}" \
     --image "${REGISTRY}/${svc}:latest" \
     --region "$REGION" \
@@ -157,12 +159,15 @@ IDENTITY_URL=$(gcloud run services describe "${APP_NAME}-ms-001-identity" \
   --region="$REGION" --project="$PROJECT_ID" --format="value(status.url)" 2>/dev/null || echo "N/A")
 EVALUATOR_URL=$(gcloud run services describe "${APP_NAME}-ms-014-evaluator" \
   --region="$REGION" --project="$PROJECT_ID" --format="value(status.url)" 2>/dev/null || echo "N/A")
+MCP_URL=$(gcloud run services describe "${APP_NAME}-ms-015-mcp" \
+  --region="$REGION" --project="$PROJECT_ID" --format="value(status.url)" 2>/dev/null || echo "N/A")
 
 echo ""
 echo "  ┌────────────────────────────────────────────────────────────────────┐"
 echo "  │  🌐  Web App:          $WEB_URL"
 echo "  │  🔐  Identity API:     $IDENTITY_URL"
 echo "  │  📊  Model Evaluator:  $EVALUATOR_URL/api/v1/evaluator/health-report"
+echo "  │  🔌  MCP Server:       $MCP_URL/mcp"
 echo "  └────────────────────────────────────────────────────────────────────┘"
 echo ""
 

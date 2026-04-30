@@ -439,6 +439,38 @@ services:
     networks:
       - pec-network
 
+  # ─── MCP Server ──────────────────────────────────────────────
+
+  ms-015-mcp:
+    build:
+      context: ./services/ms-015-mcp
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL:           postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_learning
+      DATABASE_URL_EVALUATOR: postgresql://${POSTGRES_USER:-pec}:${POSTGRES_PASSWORD:-pec_secret}@postgres:5432/pec_evaluator
+      OLLAMA_BASE_URL:        ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      EVALUATOR_SERVICE_URL:  http://ms-014-evaluator:8000
+      MCP_API_KEY:            ${MCP_API_KEY:-}
+      OTEL_SERVICE_NAME:      pec-mcp
+    ports:
+      - "8015:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ms-013-learning:
+        condition: service_healthy
+      ms-014-evaluator:
+        condition: service_healthy
+    networks:
+      - pec-network
+
   # ─── Web App ─────────────────────────────────────────────────
 
   web-app:

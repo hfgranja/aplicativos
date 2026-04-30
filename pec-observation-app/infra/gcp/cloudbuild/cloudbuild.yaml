@@ -121,6 +121,13 @@ steps:
            -f, services/ms-014-evaluator/Dockerfile, .]
     waitFor: ["-"]
 
+  - id: build-ms-015
+    name: gcr.io/cloud-builders/docker
+    dir: pec-observation-app
+    args: [build, -t, "${_REGISTRY}/ms-015-mcp:${SHORT_SHA}", -t, "${_REGISTRY}/ms-015-mcp:latest",
+           -f, services/ms-015-mcp/Dockerfile, .]
+    waitFor: ["-"]
+
   - id: build-web-app
     name: gcr.io/cloud-builders/docker
     dir: pec-observation-app/web-app
@@ -140,7 +147,7 @@ steps:
                    ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
                    ms-009-audit ms-010-consent ms-011-knowledge \
                    ms-012-best-practices ms-013-learning ms-014-evaluator \
-                   web-app; do
+                   ms-015-mcp web-app; do
           docker push ${_REGISTRY}/$${svc}:${SHORT_SHA} &
           docker push ${_REGISTRY}/$${svc}:latest &
         done
@@ -160,6 +167,7 @@ steps:
       - build-ms-012
       - build-ms-013
       - build-ms-014
+      - build-ms-015
       - build-web-app
 
 # ── Deploy to Cloud Run ───────────────────────────────────────────────────────
@@ -175,7 +183,8 @@ steps:
                    ms-004-audio-ingestion ms-005-transcription \
                    ms-006-ai-feedback ms-007-feedback ms-008-pdf-export \
                    ms-009-audit ms-010-consent ms-011-knowledge \
-                   ms-012-best-practices ms-013-learning ms-014-evaluator; do
+                   ms-012-best-practices ms-013-learning ms-014-evaluator \
+                   ms-015-mcp; do
           gcloud run deploy ${_APP_NAME}-$${svc} \
             --image ${_REGISTRY}/$${svc}:${SHORT_SHA} \
             --region ${_REGION} --project ${_PROJECT_ID} --quiet &
