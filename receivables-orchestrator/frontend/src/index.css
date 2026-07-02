@@ -1,0 +1,124 @@
+:root {
+  --bg: #0D0D12;
+  --surface: #13131A;
+  --surface-2: #1A1A24;
+  --text: #E8E8F0;
+  --text-muted: rgba(232, 232, 240, 0.55);
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #6C63FF;
+  --accent-2: #00D4AA;
+  --danger: #FF4D6D;
+  --warning: #FFB020;
+  --success: #00C896;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button, input, select, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+
+input, select, textarea {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: filter 0.15s ease;
+}
+
+button:hover {
+  filter: brightness(1.15);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+button.ghost {
+  background: transparent;
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: white;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+th, td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-2);
+  border-radius: 8px;
+}
