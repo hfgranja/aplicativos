@@ -39,8 +39,15 @@ def evaluate_alerts(db: Session, field: models.Field, features: dict, prediction
             f"Vigor vegetativo (NDVI) anômalo detectado no talhão {field.name}.",
         )
 
+    stress_index = features.get("water_stress_index")
     dry_days = features.get("consecutive_dry_days")
-    if dry_days is not None and dry_days >= 12:
+    if stress_index is not None and stress_index >= 35:
+        _upsert_alert(
+            db, field.id, "soil_moisture", "critical" if stress_index >= 55 else "warning",
+            f"Estresse hídrico FAO-56 de {stress_index} em {field.name} "
+            f"(balanço {features.get('water_balance_fao56_mm', '?')} mm).",
+        )
+    elif dry_days is not None and dry_days >= 12:
         _upsert_alert(
             db, field.id, "soil_moisture", "warning",
             f"{dry_days} dias consecutivos sem chuva registrados em {field.name}.",

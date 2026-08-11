@@ -108,8 +108,36 @@ def field_analysis(field_id: str, current_user: CurrentUser = Depends(get_curren
         "confidence_score": result["confidence_score"],
         "confidence_tier": result["confidence_tier"],
         "recommendations": result["recommendations"],
+        "phenology": result["phenology"],
+        "water_balance": result["water_balance_summary"],
+        "yield_gap": result["yield_gap"],
         "features": {k: v for k, v in result["features"].items() if not k.startswith("_")},
     }
+
+
+@router.get("/{field_id}/phenology")
+def field_phenology(field_id: str, current_user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.services.phenology import compute_phenology
+
+    field = _get_owned_field(field_id, current_user, db)
+    ingestion.ensure_weather_ingested(db, field)
+    return compute_phenology(db, field)
+
+
+@router.get("/{field_id}/water-balance")
+def field_water_balance(field_id: str, current_user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.services.water_balance import compute_water_balance
+
+    field = _get_owned_field(field_id, current_user, db)
+    ingestion.ensure_weather_ingested(db, field)
+    return compute_water_balance(db, field)
+
+
+@router.get("/{field_id}/yield-gap")
+def field_yield_gap(field_id: str, current_user: CurrentUser = Depends(get_current_user), db: Session = Depends(get_db)):
+    field = _get_owned_field(field_id, current_user, db)
+    result = run_field_analysis(db, field, persist=False)
+    return result["yield_gap"]
 
 
 @router.get("/{field_id}/satellite", response_model=list[schemas.SatelliteObservationOut])

@@ -16,9 +16,12 @@ import {
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatCurrency, formatDate, formatNumber } from "../utils/format.js";
+import PhenologyTimeline from "../components/PhenologyTimeline.jsx";
 import ScenarioSimulator from "../components/ScenarioSimulator.jsx";
+import WaterBalanceChart from "../components/WaterBalanceChart.jsx";
+import YieldGapPanel from "../components/YieldGapPanel.jsx";
 
-const TABS = ["Visão geral", "Clima & Satélite", "Solo", "Recomendações", "Simulador what-if"];
+const TABS = ["Visão geral", "Manejo & Fenologia", "Clima & Satélite", "Solo", "Recomendações", "Simulador what-if"];
 
 export default function FieldDetail() {
   const { fieldId } = useParams();
@@ -119,6 +122,23 @@ export default function FieldDetail() {
         </div>
       )}
 
+      {tab === "Manejo & Fenologia" && (
+        <>
+          <div className="card">
+            <h2>Estágio fenológico ({analysisQuery.data?.phenology?.crop_label || field.crop})</h2>
+            <PhenologyTimeline phenology={analysisQuery.data?.phenology} />
+          </div>
+          <div className="card">
+            <h2>Balanço hídrico da cultura (FAO-56)</h2>
+            <WaterBalanceInline fieldId={field.id} />
+          </div>
+          <div className="card">
+            <h2>Yield gap — onde estão os kg/ha que faltam</h2>
+            <YieldGapPanel yieldGap={analysisQuery.data?.yield_gap} />
+          </div>
+        </>
+      )}
+
       {tab === "Clima & Satélite" && (
         <div className="card-row">
           <div className="card">
@@ -158,6 +178,16 @@ export default function FieldDetail() {
       {tab === "Simulador what-if" && <ScenarioSimulator field={field} />}
     </div>
   );
+}
+
+function WaterBalanceInline({ fieldId }) {
+  const { auth } = useAuth();
+  const waterQuery = useQuery({
+    queryKey: ["field-water-balance", fieldId],
+    queryFn: () => api.getFieldWaterBalance(auth.token, fieldId),
+  });
+  if (waterQuery.isLoading) return <div className="loading">Calculando ET0/ETc…</div>;
+  return <WaterBalanceChart waterBalance={waterQuery.data} />;
 }
 
 function ShapExplanation({ shap }) {

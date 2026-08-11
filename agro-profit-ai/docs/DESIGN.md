@@ -141,7 +141,79 @@ Support, validar com responsável agronômico" (Agronomic Safety Layer, seção
   seção 49) hoje só distingue `role` no token — não há matriz de permissões
   por endpoint além do isolamento de tenant.
 
-## 8. Geometria e banco de dados
+## 8. Camada agronômica (evolução pós-MVP-1)
+
+O objetivo do produto evoluiu de "prever produtividade" para "determinar o
+que o agricultor deve fazer para maximizar produtividade". A camada
+agronômica implementa isso em quatro módulos:
+
+### 8.1 Base de conhecimento por cultura (`app/domain/crop_knowledge.py`)
+
+Parâmetros de soja, milho, algodão, feijão, trigo, cana e café: temperatura
+base/limite para graus-dia, fases fenológicas com limiar de GDD, coeficiente
+de cultura Kc (FAO-56) e sensibilidade hídrica por fase, alvo de saturação
+por bases (V%), níveis críticos de P (Mehlich-1) e K, limiares de estresse
+térmico e geada, janela de plantio regional, tetos de produtividade
+(potencial/atingível) e condições ambientais favoráveis às principais
+doenças (ex.: ferrugem-asiática da soja).
+
+### 8.2 Fenologia (`app/services/phenology.py`, spec seção 35)
+
+Estágio atual calculado pelo acúmulo REAL de graus-dia sobre as observações
+climáticas ingeridas desde o plantio (método da média truncada, consistente
+com as diretrizes FAO-56 revisadas de estimar duração de fase por GDD em vez
+de dias-calendário). Features climáticas agregadas POR FASE: chuva, GDD,
+dias de calor extremo e dias secos em cada estágio, com destaque para fases
+críticas.
+
+### 8.3 Balanço hídrico FAO-56 (`app/services/water_balance.py`)
+
+Substitui o proxy fixo de ET por: radiação extraterrestre Ra (FAO-56 eq.
+21) → ET0 Hargreaves-Samani (eq. 52, só exige temperatura — o mínimo
+garantido pelos providers) → ETc = Kc(fase) × ET0 → balanço acumulado e
+índice de estresse 0-100 ponderado pela sensibilidade da fase (déficit no
+florescimento pesa ~2× mais que no vegetativo).
+
+### 8.4 Motor agronômico (`app/services/agronomy_engine.py`)
+
+Regras com DOSE calculada — o Decision Engine continua precificando cada
+candidata via Monte Carlo e ranqueando por margem incremental:
+
+| Regra | Método | Saída |
+|---|---|---|
+| Calagem | NC (t/ha) = (V2−V1)×CTC/100, PRNT 100% (Embrapa/IAC; V% alvo 60-70% por cultura) | dose em t/ha |
+| Fosfatagem | ~15 kg P2O5/ha por mg/dm³ de déficit vs. nível crítico (Sousa & Lobato, Cerrado) | dose em kg P2O5/ha |
+| Potássio | 50-100 kg K2O/ha abaixo do crítico | dose em kg K2O/ha |
+| N em cobertura | milho/trigo em vegetativo (soja/feijão: FBN dispensa) | dose em kg N/ha |
+| Irrigação | lâmina = 60% do déficit do balanço FAO-56, priorizada em fase crítica | lâmina em mm |
+| Doença | temperatura + UR + chuva recente vs. perfil da doença × fase suscetível | vistoria/controle |
+| Geada/calor | previsão (quando houver provider) + histórico em fase crítica | contingência |
+| Janela de plantio | mês do plantio vs. janela regional da cultura | planejamento |
+
+### 8.5 Yield gap (`app/services/yield_gap.py`)
+
+Decompõe a distância entre previsto e atingível em fatores limitantes
+quantificados (lei do mínimo): água, acidez, P, K, calor e vigor — cada um
+com kg/ha recuperáveis, conectando o diagnóstico às recomendações.
+
+### Referências agronômicas
+
+- FAO Irrigation & Drainage Paper 56 (Allen et al.) — ET0, Kc por fase,
+  Hargreaves-Samani; diretrizes revisadas de duração de fases por GDD.
+- Embrapa/IAC — calagem pelo método da saturação por bases (V% alvo 60%
+  milho / 63% soja), interpretação de análise de solo do Cerrado (Sousa &
+  Lobato, "Cerrado: correção do solo e adubação").
+- Embrapa Soja — manejo da ferrugem-asiática (perdas de até 90% sem
+  controle; vazio sanitário e calendarização de semeadura).
+- Literatura de fenologia por graus-dia (ex.: milho R1 ≈ 1240 GDD; soja Kc
+  ≈ 1,1-1,3 em pleno dossel — Irmak et al., Univ. Nebraska-Lincoln).
+
+Os valores são priors conservadores de literatura, não prescrição:
+cultivar, região e sistema deslocam todos eles. Tudo permanece Decision
+Support (spec seção 29) e deve ser recalibrado com outcomes reais conforme
+o dataset proprietário crescer (spec seção 64).
+
+## 9. Geometria e banco de dados
 
 O MVP roda em SQLite com geometrias armazenadas como GeoJSON em colunas
 `JSON` (`app/models.py`), não como `geometry` nativo do PostGIS — isso

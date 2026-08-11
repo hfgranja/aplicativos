@@ -43,6 +43,8 @@ export const api = {
   getFieldYieldForecast: (token, fieldId) => request(`/fields/${fieldId}/yield-forecast`, { token }),
   getFieldProfitability: (token, fieldId) => request(`/fields/${fieldId}/profitability`, { token }),
   getFieldRecommendations: (token, fieldId) => request(`/fields/${fieldId}/recommendations`, { token }),
+  getFieldPhenology: (token, fieldId) => request(`/fields/${fieldId}/phenology`, { token }),
+  getFieldWaterBalance: (token, fieldId) => request(`/fields/${fieldId}/water-balance`, { token }),
 
   createScenario: (token, payload) => request("/scenarios", { method: "POST", token, body: payload }),
   listScenarios: (token, fieldId) => request(`/scenarios/${fieldId}`, { token }),

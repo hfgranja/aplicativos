@@ -116,6 +116,63 @@ def ensure_weather_ingested(db: Session, field: models.Field, days_back: int = 1
     return "synthetic_fallback" if used_synthetic else provider_name
 
 
+def ensure_forecast_ingested(db: Session, field: models.Field, days: int = 7) -> list[dict]:
+    """Ingere previsão dos próximos dias (kind='forecast') via cadeia de
+    providers de forecast; retorna as linhas (novas + cacheadas de hoje).
+    Previsões velhas são substituídas — nunca misturadas com observação
+    (spec 4.1: origem sempre identificada)."""
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    cached = (
+        db.query(models.WeatherObservation)
+        .filter(
+            models.WeatherObservation.field_id == field.id,
+            models.WeatherObservation.kind == "forecast",
+            models.WeatherObservation.created_at >= today,
+        )
+        .order_by(models.WeatherObservation.date)
+        .all()
+    )
+    if cached:
+        return [
+            {
+                "date": c.date.date().isoformat(),
+                "precipitation_mm": c.precipitation_mm,
+                "temperature_min_c": c.temperature_min_c,
+                "temperature_max_c": c.temperature_max_c,
+                "provider": c.provider,
+            }
+            for c in cached
+        ]
+
+    rows, provider_name = weather_router.forecast(field.centroid_lat, field.centroid_lon, days=days)
+    if not rows:
+        return []
+
+    # descarta previsões de execuções anteriores antes de gravar as novas
+    db.query(models.WeatherObservation).filter(
+        models.WeatherObservation.field_id == field.id,
+        models.WeatherObservation.kind == "forecast",
+    ).delete()
+    for r in rows:
+        row_date = datetime.fromisoformat(r["date"]) if isinstance(r["date"], str) else r["date"]
+        db.add(
+            models.WeatherObservation(
+                field_id=field.id,
+                date=row_date,
+                kind="forecast",
+                provider=r.get("provider", provider_name),
+                precipitation_mm=r.get("precipitation_mm"),
+                temperature_min_c=r.get("temperature_min_c"),
+                temperature_max_c=r.get("temperature_max_c"),
+                temperature_avg_c=r.get("temperature_avg_c"),
+                relative_humidity_pct=r.get("relative_humidity_pct"),
+                wind_speed_ms=r.get("wind_speed_ms"),
+            )
+        )
+    db.commit()
+    return rows
+
+
 def ensure_satellite_ingested(db: Session, field: models.Field, days_back: int = 60) -> None:
     existing = (
         db.query(models.SatelliteObservation)
@@ -217,4 +274,5 @@ def ensure_field_data_ingested(db: Session, field: models.Field) -> dict[str, st
     weather_provider = ensure_weather_ingested(db, field)
     ensure_satellite_ingested(db, field)
     ensure_soil_ingested(db, field)
+    ensure_forecast_ingested(db, field)
     return {"weather_provider": weather_provider}

@@ -41,17 +41,12 @@ FEATURE_COLUMNS = [
     "fertilizer_cost_per_ha",
 ]
 
-# Approximate national-average yield anchors (kg/ha), order of magnitude
-# from IBGE PAM historical series — used only to center the synthetic prior.
-CROP_BASE_YIELD_KG_HA = {
-    "soja": 3300,
-    "milho": 5600,
-    "algodao": 1700,
-    "cafe": 1500,
-    "cana_de_acucar": 75000,
-    "feijao": 1100,
-    "trigo": 2900,
-}
+# Anchors derivados da base de conhecimento agronômico: a média nacional
+# efetiva fica bem abaixo do atingível (yield gap real) — usamos ~72% do
+# atingível como centro do prior, coerente com as séries do IBGE PAM.
+from app.domain.crop_knowledge import CROP_KB
+
+CROP_BASE_YIELD_KG_HA = {crop: round(kb.yield_attainable_kg_ha * 0.72) for crop, kb in CROP_KB.items()}
 DEFAULT_BASE_YIELD = 3000
 
 

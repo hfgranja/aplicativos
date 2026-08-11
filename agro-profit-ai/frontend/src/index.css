@@ -475,3 +475,101 @@ textarea:focus {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* Fenologia */
+.pheno-progress-track {
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.pheno-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  border-radius: 5px;
+}
+
+.pheno-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.pheno-stage {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  opacity: 0.45;
+}
+
+.pheno-stage.reached {
+  opacity: 0.8;
+}
+
+.pheno-stage.current {
+  opacity: 1;
+  border-color: var(--accent);
+  background: rgba(95, 214, 125, 0.06);
+}
+
+.pheno-stage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.pheno-stage.reached .pheno-stage-dot {
+  background: var(--accent);
+}
+
+.pheno-stage-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.pheno-stage-meta {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* Yield gap */
+.gap-bar-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 110px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.gap-bar-label {
+  font-size: 12px;
+}
+
+.gap-bar-track {
+  height: 14px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.gap-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+.gap-bar-value {
+  font-size: 12px;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .gap-bar-row {
+    grid-template-columns: 130px 1fr 90px;
+  }
+}
