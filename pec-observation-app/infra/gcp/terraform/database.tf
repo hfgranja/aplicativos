@@ -3,6 +3,9 @@ resource "google_sql_database_instance" "main" {
   database_version = "POSTGRES_15"
   region           = var.region
 
+  # CMEK — Customer-Managed Encryption Key (prod only)
+  encryption_key_name = var.enable_cmek ? local.cmek_sql_key : null
+
   settings {
     tier              = var.db_tier
     availability_type = var.environment == "production" ? "REGIONAL" : "ZONAL"
@@ -14,7 +17,7 @@ resource "google_sql_database_instance" "main" {
       point_in_time_recovery_enabled = true
       start_time                     = "03:00"
       backup_retention_settings {
-        retained_backups = 14
+        retained_backups = var.environment == "production" ? 30 : 7
       }
     }
 
@@ -28,10 +31,18 @@ resource "google_sql_database_instance" "main" {
       value = "300"
     }
     # pgvector requires shared_preload_libraries — included by default in Cloud SQL PG15
+
+    user_labels = {
+      environment         = var.environment
+      data_classification = "sensitive_personal_data"
+    }
   }
 
   deletion_protection = var.environment == "production"
-  depends_on          = [google_service_networking_connection.private_vpc]
+  depends_on = concat(
+    [google_service_networking_connection.private_vpc],
+    var.enable_cmek ? [google_kms_crypto_key_iam_member.cloudsql_sa[0]] : [],
+  )
 }
 
 resource "google_sql_user" "root" {
@@ -86,11 +97,11 @@ resource "null_resource" "pgvector_extension" {
 
   provisioner "local-exec" {
     command = <<-CMD
-      gcloud sql connect ${google_sql_database_instance.main.name} \
-        --user=postgres \
-        --database=pec_learning \
-        --project=${var.project_id} \
-        --quiet \
+      gcloud sql connect ${google_sql_database_instance.main.name} \\
+        --user=postgres \\
+        --database=pec_learning \\
+        --project=${var.project_id} \\
+        --quiet \\
         <<< "CREATE EXTENSION IF NOT EXISTS vector;"
     CMD
   }

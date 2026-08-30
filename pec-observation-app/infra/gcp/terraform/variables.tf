@@ -182,3 +182,41 @@ variable "quality_alert_threshold" {
   type        = number
   default     = 0.60
 }
+
+# ── Security feature flags ────────────────────────────────────────────────────
+
+variable "enable_waf" {
+  description = "Enable Cloud Armor WAF (OWASP CRS + rate limiting). Recommended for preprod and prod."
+  type        = bool
+  default     = false
+}
+
+variable "enable_iap" {
+  description = "Enable Identity-Aware Proxy on admin endpoints (/audit, /learning, /evaluator)."
+  type        = bool
+  default     = false
+}
+
+variable "enable_cmek" {
+  description = "Enable Customer-Managed Encryption Keys (KMS) for Cloud SQL and audio GCS bucket. Production only."
+  type        = bool
+  default     = false
+}
+
+variable "enable_binary_auth" {
+  description = "Enable Binary Authorization — requires images to be attested by Cloud Build SA. Production only."
+  type        = bool
+  default     = false
+}
+
+variable "iap_allowed_members" {
+  description = "IAM members allowed through IAP to admin endpoints. Format: 'user:x@y.com' or 'group:g@y.com'."
+  type        = list(string)
+  default     = []
+}
+
+variable "allowed_ingress_cidrs" {
+  description = "IP CIDRs allowed to reach Cloud Run services. Empty = all (0.0.0.0/0)."
+  type        = list(string)
+  default     = []
+}
