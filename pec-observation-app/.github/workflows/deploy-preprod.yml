@@ -1,0 +1,216 @@
+name: Deploy → Pré-Produção
+
+on:
+  push:
+    branches:
+      - "release/**"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Deploy serviço específico (vazio = todos)"
+        required: false
+        default: ""
+      run_load_test:
+        description: "Executar load test após deploy?"
+        type: boolean
+        default: false
+
+env:
+  PROJECT_ID:  ${{ secrets.GCP_PROJECT_ID_STG }}
+  REGION:      southamerica-east1
+  APP_NAME:    pec-stg
+  REGISTRY:    southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID_STG }}/pec-stg
+
+jobs:
+  # ── CI + Integration Tests ──────────────────────────────────────────────────
+  full-test-suite:
+    name: Suite Completa de Testes
+    runs-on: ubuntu-latest
+    environment: preprod-tests
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: pec
+          POSTGRES_PASSWORD: test_secret
+          POSTGRES_DB: pec_test
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 5
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          pip install -e pec-observation-app/shared/
+          pip install pytest httpx
+
+      - name: Testes unitários
+        run: |
+          cd pec-observation-app
+          python -m pytest services/ms-001-identity/tests/ \
+                           services/ms-003-observation/tests/ \
+                           services/ms-014-evaluator/tests/ \
+                           -v --tb=short --junit-xml=test-results/unit.xml
+        env:
+          DATABASE_URL: postgresql://pec:test_secret@localhost:5432/pec_test
+          SECRET_KEY: test-secret-key-32-chars-minimum!!
+          REDIS_URL: redis://localhost:6379/0
+
+      - name: Upload resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: pec-observation-app/test-results/
+
+  # ── Security Scan Completo ──────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan (Trivy + SBOM)
+    runs-on: ubuntu-latest
+    needs: full-test-suite
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy FS scan (CRITICAL + HIGH)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: pec-observation-app/
+          severity: CRITICAL,HIGH
+          exit-code: 1
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: SBOM — CycloneDX
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: pec-observation-app/
+          format: cyclonedx
+          output: sbom.json
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom.json
+
+  # ── Build e Deploy ──────────────────────────────────────────────────────────
+  build-deploy:
+    name: Build + Deploy (todos os serviços)
+    runs-on: ubuntu-22.04
+    needs: security-scan
+    environment: preprod                # 1 aprovação obrigatória no GitHub
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_STG }}
+          service_account: ${{ secrets.GCP_SA_STG }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build all services (paralelo)
+        run: |
+          set -e
+          SERVICES="ms-001-identity ms-002-school ms-003-observation ms-004-audio-ingestion ms-005-transcription ms-006-ai-feedback ms-007-feedback ms-008-pdf-export ms-009-audit ms-010-consent ms-011-knowledge ms-012-best-practices ms-013-learning ms-014-evaluator ms-015-mcp"
+          for svc in $SERVICES; do
+            docker build \
+              -t "${{ env.REGISTRY }}/${svc}:stg-${{ github.sha }}" \
+              -t "${{ env.REGISTRY }}/${svc}:stg-latest" \
+              -f "services/${svc}/Dockerfile" \
+              --cache-from "${{ env.REGISTRY }}/${svc}:stg-latest" \
+              --build-arg BUILDKIT_INLINE_CACHE=1 \
+              . &
+          done
+          docker build \
+            -t "${{ env.REGISTRY }}/web-app:stg-${{ github.sha }}" \
+            -t "${{ env.REGISTRY }}/web-app:stg-latest" \
+            web-app &
+          wait
+        working-directory: pec-observation-app
+        env:
+          DOCKER_BUILDKIT: "1"
+
+      - name: Push all images
+        run: |
+          SERVICES="ms-001-identity ms-002-school ms-003-observation ms-004-audio-ingestion ms-005-transcription ms-006-ai-feedback ms-007-feedback ms-008-pdf-export ms-009-audit ms-010-consent ms-011-knowledge ms-012-best-practices ms-013-learning ms-014-evaluator ms-015-mcp web-app"
+          for svc in $SERVICES; do
+            docker push "${{ env.REGISTRY }}/${svc}:stg-${{ github.sha }}" &
+            docker push "${{ env.REGISTRY }}/${svc}:stg-latest" &
+          done
+          wait
+
+      - name: Deploy to Cloud Run
+        run: |
+          SERVICES="ms-001-identity ms-002-school ms-003-observation ms-004-audio-ingestion ms-005-transcription ms-006-ai-feedback ms-007-feedback ms-008-pdf-export ms-009-audit ms-010-consent ms-011-knowledge ms-012-best-practices ms-013-learning ms-014-evaluator ms-015-mcp"
+          for svc in $SERVICES; do
+            gcloud run deploy "${{ env.APP_NAME }}-${svc}" \
+              --image="${{ env.REGISTRY }}/${svc}:stg-${{ github.sha }}" \
+              --region="${{ env.REGION }}" --platform=managed --quiet &
+          done
+          gcloud run deploy "${{ env.APP_NAME }}-web-app" \
+            --image="${{ env.REGISTRY }}/web-app:stg-${{ github.sha }}" \
+            --region="${{ env.REGION }}" --platform=managed --quiet &
+          wait
+
+      - name: Smoke test pré-prod
+        run: |
+          IDENTITY_URL=$(gcloud run services describe "${{ env.APP_NAME }}-ms-001-identity" \
+            --region="${{ env.REGION }}" --format="value(status.url)" 2>/dev/null || echo "")
+          WEB_URL=$(gcloud run services describe "${{ env.APP_NAME }}-web-app" \
+            --region="${{ env.REGION }}" --format="value(status.url)" 2>/dev/null || echo "")
+          [[ -n "$IDENTITY_URL" ]] && curl -sf "${IDENTITY_URL}/health" && echo "Identity OK"
+          [[ -n "$WEB_URL" ]]     && curl -sf "${WEB_URL}/"             && echo "Web OK"
+
+  # ── Load Test (opcional) ─────────────────────────────────────────────────────
+  load-test:
+    name: Load Test (k6)
+    runs-on: ubuntu-latest
+    needs: build-deploy
+    if: github.event.inputs.run_load_test == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6
+
+      - name: Run baseline load test
+        run: k6 run pec-observation-app/tests/load/k6-baseline.js --env ENV=preprod
+        continue-on-error: true

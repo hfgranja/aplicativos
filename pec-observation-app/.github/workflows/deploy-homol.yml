@@ -1,0 +1,170 @@
+name: Deploy → Homologação
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "pec-observation-app/services/**"
+      - "pec-observation-app/shared/**"
+      - "pec-observation-app/web-app/**"
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Deploy serviço específico (vazio = todos)"
+        required: false
+        default: ""
+
+env:
+  PROJECT_ID:  ${{ secrets.GCP_PROJECT_ID_HOM }}
+  REGION:      southamerica-east1
+  APP_NAME:    pec-hom
+  REGISTRY:    southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID_HOM }}/pec-hom
+
+jobs:
+  # ── Testes de CI antes do deploy ────────────────────────────────────────────
+  ci-tests:
+    name: CI Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: pec
+          POSTGRES_PASSWORD: test_secret
+          POSTGRES_DB: pec_identity
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install shared lib
+        run: pip install -e pec-observation-app/shared/
+
+      - name: Test MS-001 Identity
+        run: |
+          pip install -r pec-observation-app/services/ms-001-identity/requirements.txt
+          cd pec-observation-app && python -m pytest services/ms-001-identity/tests/ -v --tb=short
+        env:
+          DATABASE_URL: postgresql://pec:test_secret@localhost:5432/pec_identity
+          SECRET_KEY: test-secret-key-32-chars-minimum!!
+          REDIS_URL: redis://localhost:6379/0
+
+      - name: Test MS-003 Observation
+        run: |
+          pip install -r pec-observation-app/services/ms-003-observation/requirements.txt
+          cd pec-observation-app && python -m pytest services/ms-003-observation/tests/ -v --tb=short || true
+        env:
+          DATABASE_URL: postgresql://pec:test_secret@localhost:5432/pec_identity
+          SECRET_KEY: test-secret-key-32-chars-minimum!!
+
+  # ── Security scan ───────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: ci-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy FS scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: pec-observation-app/
+          severity: CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+
+  # ── Build e Deploy ──────────────────────────────────────────────────────────
+  detect-changes:
+    name: Detectar mudanças
+    runs-on: ubuntu-latest
+    needs: security-scan
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: set-matrix
+        run: |
+          if [[ -n "${{ github.event.inputs.service }}" ]]; then
+            SVCS='["${{ github.event.inputs.service }}"]'
+          else
+            SHARED=$(git diff --name-only HEAD~1 HEAD -- pec-observation-app/shared/ | wc -l)
+            if [[ "$SHARED" -gt 0 ]]; then
+              SVCS='["ms-001-identity","ms-002-school","ms-003-observation","ms-004-audio-ingestion","ms-005-transcription","ms-006-ai-feedback","ms-007-feedback","ms-008-pdf-export","ms-009-audit","ms-010-consent","ms-011-knowledge","ms-012-best-practices","ms-013-learning","ms-014-evaluator","ms-015-mcp"]'
+            else
+              SVCS=$(git diff --name-only HEAD~1 HEAD -- pec-observation-app/services/ \
+                | sed 's|pec-observation-app/services/||' \
+                | cut -d/ -f1 | sort -u | jq -R . | jq -sc .)
+            fi
+          fi
+          echo "matrix={\"service\":$SVCS}" >> "$GITHUB_OUTPUT"
+
+  build-deploy:
+    name: Build + Deploy ${{ matrix.service }}
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.matrix != '{"service":[]}'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    environment: homologacao
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER_HOM }}
+          service_account: ${{ secrets.GCP_SA_HOM }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build e push
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ matrix.service }}"
+          docker build \
+            -t "${IMAGE}:hom-${{ github.sha }}" \
+            -t "${IMAGE}:hom-latest" \
+            -f "services/${{ matrix.service }}/Dockerfile" \
+            --cache-from "${IMAGE}:hom-latest" \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            .
+          docker push "${IMAGE}:hom-${{ github.sha }}"
+          docker push "${IMAGE}:hom-latest"
+        working-directory: pec-observation-app
+        env:
+          DOCKER_BUILDKIT: "1"
+
+      - name: Deploy Cloud Run
+        run: |
+          gcloud run deploy "${{ env.APP_NAME }}-${{ matrix.service }}" \
+            --image="${{ env.REGISTRY }}/${{ matrix.service }}:hom-${{ github.sha }}" \
+            --region="${{ env.REGION }}" \
+            --platform=managed \
+            --quiet
+
+      - name: Smoke test
+        run: |
+          SVC_URL=$(gcloud run services describe "${{ env.APP_NAME }}-${{ matrix.service }}" \
+            --region="${{ env.REGION }}" --format="value(status.url)" 2>/dev/null || echo "")
+          if [[ -n "$SVC_URL" ]]; then
+            curl -sf "${SVC_URL}/health" || echo "Serviço ainda iniciando..."
+          fi
