@@ -7,10 +7,25 @@ balanço/DRE do banco aparece nas linhas **Pagamentos e Recebimentos** e
 
 ## O grupo
 
-- Dayane Ribeiro
-- Allan Hozcar
-- Márcio Abdutatif
-- Demais pares do grupo (líderes técnicos e de produto do fluxo PJ)
+| Nome | Área/capacidade principal |
+|---|---|
+| Dayane Ribeiro | Operação de todos os produtos |
+| Fábio Margarito | Itaú Empresas |
+| Priscila Rocha | Canais de atendimento, pricing e Pulse |
+| Rodolfo Marques | Cartão PJ |
+| Allan Hozcar | Laranjinha |
+| Márcio Abdulatiff | E-commerce Rede |
+| Henrique Granja | Core Adquirência |
+| Fabiana Fernandes | Cash Management |
+
+## Liderança de referência
+
+- **Milton Maluhy Filho** — CEO do Itaú Unibanco
+- **Ricardo Guerra** — CIO do Itaú Unibanco
+- **Adriano Tchen** — Diretor de Tecnologia, Itaú Unibanco
+
+Usada como bússola de prioridade/cultura e como topo da cadeia de
+escalação para lacunas críticas (ver detalhe no arquivo do agente).
 
 ## Papel do Agente 11
 
@@ -18,16 +33,30 @@ Diferente dos demais integrantes, o Agente 11 não é dono de uma vertical
 fixa. Sua missão é dupla:
 
 1. **Validar lacunas** — mapear, com evidência, onde o grupo está
-   descoberto, duplicado sem coordenação, ou cobrindo algo só no papel.
+   descoberto, duplicado sem coordenação, ou cobrindo algo só no papel,
+   classificando cada uma por severidade (crítica/alta/média/baixa).
 2. **Complementar capacidades** — propor e, quando possível, executar o
    complemento necessário (estudo, especificação, protótipo, recomendação),
-   sempre indicando o dono definitivo dentro do grupo.
+   sempre indicando o dono definitivo dentro do grupo — e escalando à
+   liderança de referência quando a lacuna for crítica.
+
+A análise também considera dimensões de regulatório/compliance,
+ecossistema/parcerias externas e dados/IA, e usa pesquisa pública
+(LinkedIn e mídia executiva) para embasar a sugestão de dono de cada
+lacuna — sempre limitada a expertise profissional, nunca a dados internos
+do banco (guardrail de confidencialidade obrigatório no agente).
 
 A definição completa de missão, escopo de negócio, metodologia de análise
-de lacunas e formato de saída está no arquivo do agente:
-[`​.claude/agents/agente-11.md`](.claude/agents/agente-11.md).
+de lacunas, severidade, escalação e formato de saída está no arquivo do
+agente: [`.claude/agents/agente-11.md`](.claude/agents/agente-11.md).
 
-## Como usar
+## Rodada semanal automática
+
+Uma Routine semanal aciona o Agente 11 automaticamente, gerando um novo
+relatório em [`relatorios/`](relatorios) a cada execução (arquivo
+`AAAA-MM-DD.md`) e commitando o resultado no repositório.
+
+## Como usar manualmente
 
 Este subagente segue o formato padrão de subagentes do Claude Code
 (frontmatter + system prompt em Markdown). Para ativá-lo em um projeto:
@@ -39,11 +68,12 @@ Este subagente segue o formato padrão de subagentes do Claude Code
    `subagent_type: agente-11`) sempre que precisar de uma varredura de
    lacunas de capacidade no fluxo PJ.
 3. Ajuste a lista `tools` no frontmatter conforme o acesso necessário no
-   repositório de destino (por padrão, o agente é somente leitura/pesquisa:
-   `Read, Grep, Glob, WebSearch, WebFetch`).
+   repositório de destino (por padrão: `Read, Grep, Glob, WebSearch,
+   WebFetch, Write, Edit, Bash` — pesquisa e produção de specs/protótipos,
+   sem restrição de execução além dos limites descritos no próprio agente).
 
 ## Manutenção
 
-A matriz de capacidades (modelo no corpo do agente) deve ser atualizada a
-cada rodada de análise e revisada pelo grupo — o Agente 11 sugere donos,
+O roster e a matriz de capacidades devem ser revisados pelo grupo sempre
+que a composição do time mudar — o Agente 11 sugere donos e escalações,
 mas não os atribui unilateralmente.
