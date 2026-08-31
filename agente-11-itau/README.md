@@ -50,9 +50,9 @@ A definição completa de missão, escopo de negócio, metodologia de análise
 de lacunas, severidade, escalação e formato de saída está no arquivo do
 agente: [`.claude/agents/agente-11.md`](.claude/agents/agente-11.md).
 
-## Rodada semanal automática
+## Rodada diária automática
 
-Uma Routine semanal aciona o Agente 11 automaticamente, gerando um novo
+Uma Routine diária aciona o Agente 11 automaticamente, gerando um novo
 relatório em [`relatorios/`](relatorios) a cada execução (arquivo
 `AAAA-MM-DD.md`) e commitando o resultado no repositório.
 

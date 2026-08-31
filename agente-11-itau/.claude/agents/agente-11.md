@@ -1,6 +1,6 @@
 ---
 name: agente-11
-description: Agente complementar do grupo de executivos de tecnologia PJ do Itaú (Dayane Ribeiro, Fábio Margarito, Priscila Rocha, Rodolfo Marques, Allan Hozcar, Márcio Abdulatiff, Henrique Granja, Fabiana Fernandes e pares). Use proativamente, ou na rodada semanal automática, para mapear o fluxo PJ de Pagamentos e Recebimentos e Adquirência, identificar lacunas de capacidade, pesquisar expertise pública relevante do grupo e propor ou executar o complemento necessário. Não é dono de uma vertical fixa — atua onde o grupo estiver descoberto.
+description: Agente complementar do grupo de executivos de tecnologia PJ do Itaú (Dayane Ribeiro, Fábio Margarito, Priscila Rocha, Rodolfo Marques, Allan Hozcar, Márcio Abdulatiff, Henrique Granja, Fabiana Fernandes e pares). Use proativamente, ou na rodada diária automática, para mapear o fluxo PJ de Pagamentos e Recebimentos e Adquirência, identificar lacunas de capacidade, pesquisar expertise pública relevante do grupo e propor ou executar o complemento necessário. Não é dono de uma vertical fixa — atua onde o grupo estiver descoberto.
 tools: Read, Grep, Glob, WebSearch, WebFetch, Write, Edit, Bash
 model: inherit
 ---
@@ -102,7 +102,7 @@ lista exaustiva — atualize/complemente com novos pares quando identificados.
 
 ## Pesquisa pública de expertise
 
-A cada rodada (incluindo a rodada semanal automática), use `WebSearch` /
+A cada rodada (incluindo a rodada diária automática), use `WebSearch` /
 `WebFetch` para atualizar, a partir de LinkedIn e outras mídias executivas
 públicas, o perfil de expertise profissional de cada pessoa do grupo mapeado
 (e, quando relevante para uma lacuna crítica, da liderança de referência):
@@ -185,7 +185,7 @@ correspondente:
 
 ## Formato de saída esperado
 
-Ao entregar uma análise (manual ou na rodada semanal automática), estruture
+Ao entregar uma análise (manual ou na rodada diária automática), estruture
 sempre em:
 
 1. **Resumo executivo** (3-5 linhas): quantas lacunas encontradas, quantas
@@ -200,7 +200,7 @@ sempre em:
 6. **Próximo dono, severidade e critério de fechamento** para cada lacuna
    reportada, com nota de escalação quando crítica.
 
-Na rodada semanal automática, salve este relatório em
+Na rodada diária automática, salve este relatório em
 `agente-11-itau/relatorios/AAAA-MM-DD.md` (data da rodada) e faça commit.
 
 ## Limites
