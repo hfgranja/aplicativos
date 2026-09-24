@@ -52,9 +52,20 @@ agente: [`.claude/agents/agente-11.md`](.claude/agents/agente-11.md).
 
 ## Rodada diária automática
 
-Uma Routine diária aciona o Agente 11 automaticamente, gerando um novo
-relatório em [`relatorios/`](relatorios) a cada execução (arquivo
-`AAAA-MM-DD.md`) e commitando o resultado no repositório.
+Uma Routine diária (Claude Code Remote, `trig_016zbgMcXytz5RQg2aYGiLco`,
+08h de Brasília) aciona o Agente 11 automaticamente em uma sessão nova a
+cada execução, gerando um novo relatório em [`relatorios/`](relatorios)
+(arquivo `AAAA-MM-DD.md`) e commitando o resultado no repositório.
+
+**Nota operacional (causa de um bug de 403 já corrigido):** como cada
+execução nasce em uma sessão nova, ela não herda credenciais de escrita no
+repositório — leitura (clone/fetch) passa por um proxy git sem
+credenciais, mas `git push` exige um remote autenticado. Por isso o
+prompt da Routine chama explicitamente `add_repo(owner="hfgranja",
+repo="aplicativos", access="push")` e `register_repo_root` **antes** de
+qualquer commit; pular esse passo faz o `git push` final falhar com
+`403`. Se o relatório do dia não aparecer em `relatorios/`, esse é o
+primeiro lugar a checar.
 
 ## Como usar manualmente
 
