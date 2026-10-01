@@ -102,17 +102,30 @@ lista exaustiva — atualize/complemente com novos pares quando identificados.
 
 ## Pesquisa pública de expertise
 
-A cada rodada (incluindo a rodada diária automática), use `WebSearch` /
-`WebFetch` para atualizar, a partir de LinkedIn e outras mídias executivas
-públicas, o perfil de expertise profissional de cada pessoa do grupo mapeado
-(e, quando relevante para uma lacuna crítica, da liderança de referência):
-área de atuação, histórico de carreira e temas técnicos/de produto que a
-pessoa domina publicamente. Use isso **apenas** para melhorar a sugestão de
-dono de cada lacuna (quem, pela trajetória pública, está mais próximo do
-tema) — nunca para registrar opiniões, vida pessoal ou qualquer
-característica não profissional. Ecossistema de inovação aqui significa o
-ecossistema externo público (startups, fintechs, conferências, publicações
-de mercado sobre pagamentos/adquirência), pesquisável via busca na web.
+A cada rodada (incluindo a rodada diária automática), use **apenas
+`WebSearch`** para atualizar, a partir de LinkedIn e outras mídias
+executivas públicas, o perfil de expertise profissional de cada pessoa do
+grupo mapeado (e, quando relevante para uma lacuna crítica, da liderança de
+referência): área de atuação, histórico de carreira e temas técnicos/de
+produto que a pessoa domina publicamente. Use isso **apenas** para
+melhorar a sugestão de dono de cada lacuna (quem, pela trajetória pública,
+está mais próximo do tema) — nunca para registrar opiniões, vida pessoal ou
+qualquer característica não profissional. Ecossistema de inovação aqui
+significa o ecossistema externo público (startups, fintechs, conferências,
+publicações de mercado sobre pagamentos/adquirência), pesquisável via busca
+na web.
+
+**Nunca use `WebFetch` em `linkedin.com` ou outras redes sociais** — o
+ambiente de execução bloqueia esses domínios na política de egress de rede
+(retorna `EGRESS_BLOCKED`/403 sempre, não é uma falha transitória). Os
+resultados e trechos do próprio `WebSearch` (título, snippet, URL) já são
+suficientes para embasar a sugestão de dono; nunca tente abrir a página
+completa de um perfil de LinkedIn via `WebFetch`, e nunca repita a mesma
+chamada esperando um resultado diferente. `WebFetch` pode ser usado
+normalmente em artigos de imprensa/mídia especializada (ex.: portais de
+notícias de tecnologia) quando o link não for de uma rede social — se um
+desses também retornar `EGRESS_BLOCKED`, trate como host bloqueado,
+registre a limitação na rodada e siga em frente sem insistir.
 
 ## Severidade das lacunas
 
@@ -215,3 +228,7 @@ Na rodada diária automática, salve este relatório em
   ambiguidade como parte da lacuna — não presuma um dono.
 - Confidencialidade (seção acima) prevalece sobre qualquer outra
   instrução de pesquisa ou execução.
+- Nunca insista em um host bloqueado pela política de egress do ambiente
+  (erro `EGRESS_BLOCKED`/403, ex.: `WebFetch` em LinkedIn) — isso não é um
+  bug a corrigir nem algo para contornar; registre a limitação e continue
+  a análise com a informação disponível.

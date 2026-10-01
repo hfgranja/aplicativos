@@ -57,15 +57,28 @@ Uma Routine diária (Claude Code Remote, `trig_016zbgMcXytz5RQg2aYGiLco`,
 cada execução, gerando um novo relatório em [`relatorios/`](relatorios)
 (arquivo `AAAA-MM-DD.md`) e commitando o resultado no repositório.
 
-**Nota operacional (causa de um bug de 403 já corrigido):** como cada
-execução nasce em uma sessão nova, ela não herda credenciais de escrita no
-repositório — leitura (clone/fetch) passa por um proxy git sem
-credenciais, mas `git push` exige um remote autenticado. Por isso o
-prompt da Routine chama explicitamente `add_repo(owner="hfgranja",
-repo="aplicativos", access="push")` e `register_repo_root` **antes** de
-qualquer commit; pular esse passo faz o `git push` final falhar com
-`403`. Se o relatório do dia não aparecer em `relatorios/`, esse é o
-primeiro lugar a checar.
+**Notas operacionais (histórico de um bug de 403 já corrigido):**
+
+1. **Causa real:** o passo de "pesquisa pública de expertise" do agente
+   tentava usar `WebFetch` diretamente em `linkedin.com`. O ambiente de
+   execução bloqueia esse domínio na política de egress de rede (toda
+   chamada retorna `EGRESS_BLOCKED`/403 — confirmado reproduzindo a
+   chamada manualmente), o que acontecia em toda rodada e travava a
+   sessão antes de ela chegar ao commit/push. Corrigido restringindo essa
+   pesquisa a `WebSearch` (que não passa pelo proxy de egress local) e
+   proibindo `WebFetch` em redes sociais no arquivo do agente — ver seção
+   "Pesquisa pública de expertise" em
+   [`.claude/agents/agente-11.md`](.claude/agents/agente-11.md).
+2. **Causa secundária (mitigada por precaução):** como cada execução
+   nasce em uma sessão nova, ela não herda credenciais de escrita no
+   repositório — leitura (clone/fetch) pode passar por um proxy git sem
+   credenciais, mas `git push` exige um remote autenticado. O prompt da
+   Routine chama `add_repo(owner="hfgranja", repo="aplicativos",
+   access="push")` e `register_repo_root` antes de qualquer commit por
+   segurança, mesmo não tendo sido a causa raiz deste incidente.
+
+Se o relatório do dia não aparecer em `relatorios/`, cheque primeiro se
+alguma chamada de rede da rodada bateu em `EGRESS_BLOCKED`.
 
 ## Como usar manualmente
 
