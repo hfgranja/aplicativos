@@ -7,6 +7,8 @@ Skill do OpenClaw que transforma seu agente num assistente pessoal para:
 - 🍷 **Vinhos** — indicação, harmonização, foto de rótulo/carta, preços, sua "adega" de notas
 - 🎤 **Shows, teatro, cinema, exposições, passeios** — agenda cultural, ingressos, conflitos com sua agenda
 - 🗺️ **Roteiros** — "planeja meu sábado": evento + jantar + bar, com horários encadeados
+- 🏠 **Casa inteligente** (skill `casa`) — luzes, TV, ar, som, tomadas, persianas, robô,
+  câmeras e fechaduras da rede local via Home Assistant; cenas ("modo cinema", "saindo de casa")
 
 Tudo funciona **pelo chat do app OpenClaw** no celular. O assistente aprende suas
 preferências e guarda histórico em `memory/concierge.md` no workspace.
@@ -23,7 +25,13 @@ skills/concierge/
     eventos.md
     roteiro.md
     perfil-modelo.md       # modelo do seu perfil/preferências
-install.sh                 # copia a skill para ~/.openclaw/workspace/skills
+skills/casa/
+  SKILL.md                 # controle da casa + regras de segurança + cenas
+  scripts/ha.sh            # cliente da API do Home Assistant
+  scripts/descobrir-rede.sh# inventário dos dispositivos da rede local
+  references/instalacao.md # passo a passo Home Assistant + OpenClaw
+  references/ha-api.md
+install.sh                 # copia as skills para ~/.openclaw/workspace/skills
 automations/criar-automacoes.sh  # resumo da manhã, fim de semana, radar de shows
 ```
 
@@ -63,6 +71,23 @@ Depois, no chat: `/new` e teste `/concierge o que tenho hoje?`.
 4. **Localização (opcional)**: permissão de localização no app, para "perto de mim".
 5. **Automações (opcional)**: `TZ_NAME=America/Sao_Paulo ./automations/criar-automacoes.sh`
    — ou simplesmente peça no chat: "todo dia útil às 7h45 me manda o resumo da agenda".
+
+## Casa inteligente
+
+O assistente fala com o **Home Assistant**, que é a central conectada a todos os
+aparelhos da rede. Passo a passo completo em
+[`skills/casa/references/instalacao.md`](skills/casa/references/instalacao.md). Resumo:
+
+1. Instale o Home Assistant num aparelho sempre ligado em casa e adicione os
+   dispositivos que ele descobrir na rede (organize por cômodo).
+2. Crie um token de longa duração no seu perfil do HA.
+3. No OpenClaw, conecte via MCP (conector **Home Assistant** / `http://homeassistant.local:8123/api/mcp`)
+   e/ou defina `HASS_URL` e `HASS_TOKEN` para a skill `casa`.
+4. No chat: `/casa faz o inventário da casa`.
+
+Exemplos: "apaga tudo lá embaixo", "ar do quarto em 23", "modo cinema",
+"como está a casa?", "saindo de casa", "me avisa se a porta da garagem ficar aberta".
+Destrancar porta, abrir portão, desarmar alarme e ligar forno/aquecedor **sempre pedem confirmação**.
 
 ## Exemplos de uso
 
