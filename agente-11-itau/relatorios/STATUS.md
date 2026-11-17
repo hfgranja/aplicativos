@@ -1,6 +1,6 @@
 # Status consolidado das lacunas — Agente 11
 
-Atualizado em 2026-11-15. Este arquivo consolida o estado de todas as
+Atualizado em 2026-11-17. Este arquivo consolida o estado de todas as
 lacunas mapeadas até agora nos relatórios diários (`AAAA-MM-DD.md`), para
 que o grupo não precise ler 8 relatórios para saber o que está aberto.
 Ele é mantido pelo Agente 11 e deve ser atualizado a cada rodada que
@@ -9,14 +9,14 @@ guardam a evidência e o raciocínio completo de cada achado.
 
 | # | Lacuna | Severidade | Dono sugerido | Aberta desde | Rodadas sem confirmação | 1º relatório |
 |---|---|---|---|---|---|---|
-| 1 | Split Payment tributário (Pix/QR Code) | **Crítica** | Fabiana Fernandes + Márcio Abdulatiff (escalar a Ricardo Guerra se não confirmado) | 2026-11-06 | 10 | [2026-11-06](2026-11-06.md) |
-| 2 | Consentimento expresso por entidade parceira (Resolução Conjunta BCB/CMN nº 21/2026) | Alta | **Ambíguo** — não presumido | 2026-11-10 | 6 | [2026-11-10](2026-11-10.md) |
-| 3 | Gap de mapeamento do próprio grupo (Angelo Russomanno não representado) | Alta | **Ambíguo** — validar com o grupo | 2026-11-11 | 5 | [2026-11-11](2026-11-11.md) |
-| 4 | Documentação do grupo atrás de lançamentos reais de produto (recorrente) | Média | Dayane Ribeiro | 2026-11-11 (consolidada; 1ª ocorrência em 2026-11-09) | 5 | [2026-11-09](2026-11-09.md) |
-| 5 | Antecipação de recebíveis como produto de crédito | Média | Fabiana Fernandes | 2026-11-06 | 10 | [2026-11-06](2026-11-06.md) |
-| 6 | Marketplace de múltiplos provedores de adquirência — **spec entregue em 2026-11-14** ([ver](../complementos/marketplace-provedores-spec.md)), aguardando decisão de Henrique Granja | Média (prioridade reduzida em 2026-11-07 — Rede já lidera via bundling conta+maquininha) | Henrique Granja | 2026-11-06 | 10 | [2026-11-06](2026-11-06.md) |
-| 7 | Antifraude/risco de adquirência | Baixa (rebaixada de Alta em 2026-11-09 — capacidade já robusta no banco) | Henrique Granja | 2026-11-06 | 10 | [2026-11-06](2026-11-06.md) |
-| 8 | Comunicação multicanal inteligente na cobrança — infra de WhatsApp+IA generativa já existe no banco (ver [2026-11-15](2026-11-15.md)), esforço de fechamento reduzido | Baixa | Priscila Rocha | 2026-11-06 | 10 | [2026-11-06](2026-11-06.md) |
+| 1 | Split Payment tributário (Pix/QR Code) — **reframe em 2026-11-17**: provavelmente coberto por "Produtos de Adquirência" (área de Rodrigo Bizzotto), fora do roster deste agente, não um gap real de capacidade do banco | **Crítica** (dentro do roster mapeado) | Fabiana Fernandes + Márcio Abdulatiff — **ação revisada**: confirmar se a área de Rodrigo Bizzotto é contraparte do grupo antes de escalar a Ricardo Guerra | 2026-11-06 | 12 | [2026-11-06](2026-11-06.md) |
+| 2 | Consentimento expresso por entidade parceira (Resolução Conjunta BCB/CMN nº 21/2026) | Alta | **Ambíguo** — não presumido | 2026-11-10 | 8 | [2026-11-10](2026-11-10.md) |
+| 3 | Gap de mapeamento do próprio grupo — **2 executivos encontrados fora do roster**: Angelo Russomanno (dir. recebimentos/adquirência Itaú Empresas, 2026-11-11) e Rodrigo Bizzotto (Produtos de Adquirência, 2026-11-17) | Alta | **Ambíguo** — validar com o grupo | 2026-11-11 | 7 | [2026-11-11](2026-11-11.md) |
+| 4 | Documentação do grupo atrás de lançamentos reais de produto (recorrente) | Média | Dayane Ribeiro | 2026-11-11 (consolidada; 1ª ocorrência em 2026-11-09) | 7 | [2026-11-09](2026-11-09.md) |
+| 5 | Antecipação de recebíveis como produto de crédito | Média | Fabiana Fernandes | 2026-11-06 | 12 | [2026-11-06](2026-11-06.md) |
+| 6 | Marketplace de múltiplos provedores de adquirência — **spec entregue em 2026-11-14** ([ver](../complementos/marketplace-provedores-spec.md)), aguardando decisão de Henrique Granja | Média (prioridade reduzida em 2026-11-07 — Rede já lidera via bundling conta+maquininha) | Henrique Granja | 2026-11-06 | 12 | [2026-11-06](2026-11-06.md) |
+| 7 | Antifraude/risco de adquirência | Baixa (rebaixada de Alta em 2026-11-09 — capacidade já robusta no banco) | Henrique Granja | 2026-11-06 | 12 | [2026-11-06](2026-11-06.md) |
+| 8 | Comunicação multicanal inteligente na cobrança — infra de WhatsApp+IA generativa já existe no banco (ver [2026-11-15](2026-11-15.md)), esforço de fechamento reduzido | Baixa | Priscila Rocha | 2026-11-06 | 12 | [2026-11-06](2026-11-06.md) |
 
 ## Notas de pesquisa (não são lacunas)
 
